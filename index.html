@@ -1,0 +1,1839 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#080808">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Bjorn OS">
+<title>Bjorn OS</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #080808;
+  --bg-elev: #0e0e0e;
+  --card: #111111;
+  --card-hi: #161616;
+  --border: rgba(255,255,255,0.06);
+  --border-hi: rgba(255,255,255,0.12);
+  --text: #f5f5f5;
+  --dim: rgba(245,245,245,0.62);
+  --mute: rgba(245,245,245,0.38);
+  --green: #c8f55a;
+  --gold: #f5c842;
+  --cyan: #5af5c8;
+  --purple: #a78bfa;
+  --red: #f55a6b;
+  --serif: 'Playfair Display', Georgia, serif;
+  --sans: 'DM Sans', -apple-system, system-ui, sans-serif;
+  --mono: 'DM Mono', 'JetBrains Mono', monospace;
+  --nav-h: 90px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { height: 100%; background: #000; }
+body {
+  height: 100%;
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  max-width: 480px;
+  margin: 0 auto;
+  position: relative;
+}
+::-webkit-scrollbar { display: none; }
+input, button, textarea { font-family: var(--sans); }
+button { cursor: pointer; border: none; background: none; color: inherit; }
+
+/* ── ANIMATIONS ──────────────────────────────────────────────── */
+@keyframes tabIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(18px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes pulse {
+  0%,100% { opacity: .55; }
+  50%      { opacity: 1; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes sheetIn {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── LAYOUT ──────────────────────────────────────────────────── */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
+}
+#tab-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+.tab-screen {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 20px);
+  animation: tabIn .32s cubic-bezier(.2,.8,.2,1) both;
+}
+.tab-screen.hidden { display: none; }
+
+/* ── BOTTOM NAV ──────────────────────────────────────────────── */
+#bottom-nav {
+  flex-shrink: 0;
+  padding: 8px 14px calc(var(--safe-bottom) + 8px);
+  background: linear-gradient(180deg, rgba(8,8,8,0) 0%, rgba(8,8,8,1) 30%);
+  position: relative;
+  z-index: 40;
+}
+.nav-inner {
+  display: grid;
+  grid-template-columns: repeat(6,1fr);
+  background: rgba(18,18,18,.88);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border-radius: 26px;
+  border: 1px solid var(--border-hi);
+  box-shadow: 0 12px 30px -8px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05);
+  padding: 8px 4px;
+}
+.nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 2px;
+  border-radius: 16px;
+  position: relative;
+  transition: opacity .15s;
+}
+.nav-btn.active::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 14px;
+  background: radial-gradient(60% 80% at 50% 50%, var(--accent,#c8f55a33), transparent 70%);
+}
+.nav-icon {
+  font-size: 18px;
+  line-height: 1;
+  transition: color .2s, filter .2s;
+}
+.nav-label {
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  transition: color .2s;
+  color: var(--mute);
+}
+.nav-btn.active .nav-icon { filter: drop-shadow(0 0 6px currentColor); }
+.nav-btn.active .nav-label { color: var(--text); }
+
+/* ── TYPOGRAPHY HELPERS ──────────────────────────────────────── */
+.serif  { font-family: var(--serif); }
+.mono   { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+.mute   { color: var(--mute); }
+.dim    { color: var(--dim); }
+.num    { font-family: var(--serif); font-weight: 500; line-height: .95; }
+.page-header { padding: 18px 22px 6px; }
+.page-title { font-family: var(--serif); font-weight: 500; font-size: 36px; line-height: 1.05; }
+.page-sub   { font-family: var(--mono); font-size: 10px; color: var(--mute); letter-spacing: .06em; text-transform: uppercase; }
+
+/* ── CARD ────────────────────────────────────────────────────── */
+.card {
+  position: relative;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255,255,255,.025), rgba(255,255,255,.008) 60%, transparent), var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.4), 0 12px 30px -12px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.04);
+  overflow: hidden;
+}
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  background: radial-gradient(120% 60% at 0% 0%, var(--accent-glow, rgba(255,255,255,.06)), transparent 50%);
+  pointer-events: none;
+}
+.card-body { position: relative; z-index: 1; padding: 18px; }
+.card-sm .card-body { padding: 14px; }
+
+/* ── PILL ────────────────────────────────────────────────────── */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+/* ── PROGRESS BAR ────────────────────────────────────────────── */
+.progress-wrap {
+  height: 6px;
+  width: 100%;
+  border-radius: 999px;
+  background: rgba(255,255,255,.06);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width .8s cubic-bezier(.2,.8,.2,1);
+}
+
+/* ── SECTION PADDING ─────────────────────────────────────────── */
+.px { padding-left: 18px; padding-right: 18px; }
+.px-l { padding-left: 22px; padding-right: 22px; }
+.mt-s { margin-top: 8px; }
+.mt-m { margin-top: 14px; }
+.mt-l { margin-top: 20px; }
+
+/* card entrance animation applied via JS */
+.animate-in {
+  animation: cardIn .4s cubic-bezier(.2,.8,.2,1) both;
+}
+
+/* ── STAGGER delays ──────────────────────────────────────────── */
+.stagger-1 { animation-delay: 0ms; }
+.stagger-2 { animation-delay: 55ms; }
+.stagger-3 { animation-delay: 110ms; }
+.stagger-4 { animation-delay: 165ms; }
+.stagger-5 { animation-delay: 220ms; }
+.stagger-6 { animation-delay: 275ms; }
+.stagger-7 { animation-delay: 330ms; }
+.stagger-8 { animation-delay: 385ms; }
+
+/* ── BOTTOM SHEET ────────────────────────────────────────────── */
+#sheet-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0,0,0,.6);
+  backdrop-filter: blur(4px);
+  animation: overlayIn .2s ease both;
+}
+#sheet-overlay.open { display: block; }
+#sheet {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  background: #141414;
+  border-top-left-radius: 28px;
+  border-top-right-radius: 28px;
+  border-top: 1px solid var(--border-hi);
+  padding: 0 20px calc(var(--safe-bottom) + 24px);
+  animation: sheetIn .3s cubic-bezier(.2,.8,.2,1) both;
+}
+.sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 4px;
+  background: rgba(255,255,255,.2);
+  margin: 12px auto 20px;
+}
+.sheet-title {
+  font-family: var(--serif);
+  font-size: 20px;
+  font-weight: 500;
+  margin-bottom: 20px;
+}
+.sheet-field {
+  margin-bottom: 14px;
+}
+.sheet-field label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--mute);
+  margin-bottom: 7px;
+}
+.sheet-input {
+  width: 100%;
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--border-hi);
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: var(--text);
+  font-size: 16px;
+  outline: none;
+  transition: border-color .2s;
+}
+.sheet-input:focus { border-color: rgba(255,255,255,.25); }
+.sheet-select {
+  width: 100%;
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--border-hi);
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: var(--text);
+  font-size: 15px;
+  outline: none;
+  -webkit-appearance: none;
+}
+.sheet-select option { background: #1a1a1a; }
+.sheet-toggle {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.toggle-btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  border: 1px solid var(--border-hi);
+  color: var(--dim);
+  background: transparent;
+  transition: all .15s;
+}
+.toggle-btn.active-income { background: rgba(200,245,90,.15); border-color: var(--green); color: var(--green); }
+.toggle-btn.active-expense { background: rgba(245,90,107,.15); border-color: var(--red); color: var(--red); }
+.sheet-btn {
+  width: 100%;
+  padding: 15px;
+  border-radius: 14px;
+  font-weight: 600;
+  font-size: 15px;
+  margin-top: 6px;
+  transition: opacity .15s;
+}
+.sheet-btn:active { opacity: .8; }
+.sheet-btn-primary { background: var(--green); color: #0a0a0a; }
+.sheet-btn-danger  { background: rgba(245,90,107,.15); color: var(--red); border: 1px solid rgba(245,90,107,.3); }
+
+/* ── GYM ─────────────────────────────────────────────────────── */
+.week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  padding: 12px 18px 6px;
+}
+.week-day {
+  aspect-ratio: 1;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  transition: all .2s;
+}
+.week-day.today {
+  border-color: var(--green);
+  box-shadow: 0 0 18px rgba(200,245,90,.35);
+  background: var(--card-hi);
+}
+.week-day.done { background: rgba(200,245,90,.07); }
+.week-day.today.done { background: var(--green); color: #0a0a0a; }
+.day-label { font-family: var(--mono); font-size: 8px; opacity: .5; text-transform: uppercase; }
+.day-num   { font-family: var(--serif); font-size: 17px; line-height: 1; font-weight: 500; }
+.day-dot   { width: 4px; height: 4px; border-radius: 4px; background: var(--green); }
+
+.exercise-card { padding: 0 18px 8px; }
+.ex-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 14px;
+}
+.ex-check {
+  width: 24px; height: 24px;
+  border-radius: 8px;
+  border: 1.5px solid rgba(255,255,255,.2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700;
+  flex-shrink: 0;
+  transition: all .2s;
+  cursor: pointer;
+}
+.ex-check.done { background: var(--green); border-color: var(--green); color: #0a0a0a; box-shadow: 0 0 12px rgba(200,245,90,.5); }
+.ex-check.active { background: var(--cyan); border-color: var(--cyan); color: #0a0a0a; }
+.ex-name { font-size: 14px; font-weight: 500; flex: 1; }
+.ex-name.done { text-decoration: line-through; color: var(--dim); }
+.ex-sets-count { font-family: var(--mono); font-size: 10px; color: var(--mute); }
+.ex-sets { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 13px; }
+.set-chip {
+  padding: 6px 10px;
+  border-radius: 9px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 10px;
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.set-num  { color: var(--mute); }
+.set-del  { color: var(--mute); margin-left: 2px; cursor: pointer; }
+.set-del:hover { color: var(--red); }
+.add-set-btn {
+  padding: 6px 12px;
+  border-radius: 9px;
+  background: transparent;
+  border: 1px dashed var(--border-hi);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--mute);
+  transition: all .15s;
+}
+.add-set-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+.add-set-btn.current { border-color: var(--cyan); color: var(--cyan); background: rgba(90,245,200,.07); }
+
+/* ── FINANCES ────────────────────────────────────────────────── */
+.tx-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.tx-row:last-child { border-bottom: none; }
+.tx-icon {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.tx-info { flex: 1; min-width: 0; }
+.tx-name { font-size: 13px; font-weight: 500; }
+.tx-sub  { font-family: var(--mono); font-size: 10px; color: var(--mute); margin-top: 2px; }
+.tx-amt  { font-family: var(--serif); font-size: 15px; flex-shrink: 0; }
+.tx-del  { opacity: 0; transition: opacity .2s; color: var(--mute); padding: 4px; border-radius: 6px; }
+.tx-row:hover .tx-del { opacity: 1; }
+.tx-del:hover { color: var(--red); }
+.cat-row { padding: 0 18px 8px; }
+.cat-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 14px;
+  justify-content: space-between;
+}
+.cat-bar { margin-top: 9px; }
+
+/* ── INVESTIR ────────────────────────────────────────────────── */
+.position-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px;
+}
+.pos-icon {
+  width: 42px; height: 42px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 9px; font-weight: 600;
+  letter-spacing: .04em;
+  flex-shrink: 0;
+}
+.pos-info { flex: 1; min-width: 0; }
+.pos-name { font-size: 13px; font-weight: 500; display: flex; justify-content: space-between; align-items: flex-start; }
+.pos-sub  { font-family: var(--mono); font-size: 10px; color: var(--mute); margin-top: 3px; display: flex; justify-content: space-between; }
+.pos-spark { margin-top: 8px; }
+.range-btn {
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--mute);
+  border: 1px solid transparent;
+  transition: all .15s;
+}
+.range-btn.active { color: var(--cyan); background: rgba(90,245,200,.12); border-color: rgba(90,245,200,.3); }
+.live-dot { display: inline-block; width: 6px; height: 6px; border-radius: 6px; background: var(--cyan); margin-right: 5px; animation: pulse 2s infinite; }
+.loading-spin { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.1); border-top-color: var(--cyan); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: middle; }
+
+/* ── HABITS ──────────────────────────────────────────────────── */
+.habit-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 14px;
+}
+.habit-check {
+  width: 28px; height: 28px;
+  border-radius: 9px;
+  border: 1.5px solid rgba(255,255,255,.2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: all .2s;
+}
+.habit-check.done { box-shadow: 0 0 12px rgba(167,139,250,.5); }
+.habit-name { flex: 1; font-size: 14px; font-weight: 500; transition: all .2s; }
+.habit-name.done { text-decoration: line-through; color: var(--dim); }
+.habit-streak { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.streak-dot { font-size: 10px; }
+.streak-count { font-family: var(--mono); font-size: 11px; }
+.heat-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 5px;
+}
+.heat-cell {
+  aspect-ratio: 1;
+  border-radius: 6px;
+  transition: opacity .3s;
+}
+
+/* ── KANBAN ──────────────────────────────────────────────────── */
+.kanban-wrap {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 0 18px 18px;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+}
+.kanban-col {
+  min-width: 176px;
+  flex-shrink: 0;
+  scroll-snap-align: start;
+}
+.col-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 4px 6px 10px;
+}
+.col-dot { width: 6px; height: 6px; border-radius: 6px; margin-right: 6px; display: inline-block; }
+.col-title { font-size: 12px; font-weight: 600; }
+.col-count { font-family: var(--mono); font-size: 10px; color: var(--mute); }
+.deal-card { padding: 12px; }
+.deal-name { font-size: 12px; font-weight: 600; line-height: 1.25; }
+.deal-footer { margin-top: 8px; display: flex; justify-content: space-between; align-items: center; }
+.deal-rev { font-family: var(--serif); font-size: 15px; }
+.deal-actions { display: flex; align-items: center; gap: 6px; }
+.deal-move {
+  padding: 3px 7px; border-radius: 6px; font-size: 12px;
+  background: rgba(255,255,255,.06); border: 1px solid var(--border);
+  transition: all .15s;
+}
+.deal-move:hover { background: rgba(255,255,255,.12); }
+.deal-del { font-size: 12px; color: var(--mute); transition: color .15s; }
+.deal-del:hover { color: var(--red); }
+.add-deal-btn {
+  width: 100%;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px dashed var(--border-hi);
+  font-family: var(--mono); font-size: 10px; color: var(--mute);
+  text-align: center;
+  margin-top: 8px;
+  transition: all .15s;
+}
+.add-deal-btn:hover { border-color: rgba(200,245,90,.4); color: var(--green); }
+
+/* ── TODAY ───────────────────────────────────────────────────── */
+.today-greeting { padding: 14px 22px 8px; }
+.two-col { display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; padding: 6px 18px; }
+.stat-box {
+  flex: 1;
+  background: rgba(255,255,255,.025);
+  border-radius: 12px; padding: 10px 12px;
+  border: 1px solid var(--border);
+}
+.stat-mini-label { font-family: var(--mono); font-size: 8px; color: var(--mute); text-transform: uppercase; letter-spacing: .06em; }
+.stat-mini-val   { font-family: var(--serif); font-size: 22px; margin-top: 2px; }
+.start-btn {
+  width: 100%; padding: 12px 14px;
+  border-radius: 12px;
+  display: flex; justify-content: space-between; align-items: center;
+  font-weight: 600; font-size: 14px;
+  background: var(--green); color: #0a0a0a;
+  box-shadow: 0 0 24px rgba(200,245,90,.4);
+  transition: opacity .15s;
+  margin-top: 16px;
+}
+.start-btn:active { opacity: .85; }
+
+/* ── BUDGET EDIT ─────────────────────────────────────────────── */
+.budget-limit-edit {
+  background: none; border: none;
+  font-family: var(--serif); font-size: 14px; color: var(--dim);
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  transition: border-color .15s;
+  text-align: right;
+}
+.budget-limit-edit:focus { outline: none; border-color: rgba(255,255,255,.2); }
+
+/* ── SVG CHARTS ──────────────────────────────────────────────── */
+.sparkline { display: block; overflow: visible; }
+.bar-chart  { display: flex; gap: 4px; align-items: flex-end; }
+.bar-item   { flex: 1; border-radius: 3px; min-height: 4px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="tab-content"></div>
+  <nav id="bottom-nav">
+    <div class="nav-inner" id="nav-inner"></div>
+  </nav>
+</div>
+
+<!-- Bottom sheet -->
+<div id="sheet-overlay">
+  <div id="sheet">
+    <div class="sheet-handle"></div>
+    <div id="sheet-content"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════
+// CONSTANTS & DEFAULTS
+// ═══════════════════════════════════════════════════════════════
+const FINNHUB_KEY = 'd7staghr01qorsvjuhp0d7staghr01qorsvjuhpg';
+
+const COLORS = {
+  green: '#c8f55a', gold: '#f5c842', cyan: '#5af5c8',
+  purple: '#a78bfa', red: '#f55a6b', mute: 'rgba(245,245,245,0.38)',
+};
+const ACCENT_GLOW = {
+  green: 'rgba(200,245,90,0.18)', gold: 'rgba(245,200,66,0.18)',
+  cyan: 'rgba(90,245,200,0.18)', purple: 'rgba(167,139,250,0.18)',
+  red: 'rgba(245,90,107,0.18)',
+};
+
+const TABS = [
+  { id: 'today',   label: "Aujourd'hui", icon: '◐', accent: 'green'  },
+  { id: 'gym',     label: 'Gym',         icon: '⏶', accent: 'green'  },
+  { id: 'finance', label: 'Finances',    icon: '€', accent: 'gold'   },
+  { id: 'invest',  label: 'Investir',    icon: '↗', accent: 'cyan'   },
+  { id: 'habits',  label: 'Habits',      icon: '◆', accent: 'purple' },
+  { id: 'hub',     label: 'Hub',         icon: '◈', accent: 'green'  },
+];
+
+const GYM_PROGRAM = [
+  { name: 'Repos',  color: 'mute',   type: 'repos' },   // 0=Sun
+  { name: 'Push',   color: 'green',  type: 'push'  },   // 1=Mon
+  { name: 'Pull',   color: 'cyan',   type: 'pull'  },   // 2=Tue
+  { name: 'Pull',   color: 'cyan',   type: 'pull'  },   // 3=Wed
+  { name: 'Jambes', color: 'gold',   type: 'legs'  },   // 4=Thu
+  { name: 'Pump',   color: 'purple', type: 'pump'  },   // 5=Fri
+  { name: 'Push',   color: 'green',  type: 'push'  },   // 6=Sat
+];
+const GYM_DAYS = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+
+const EXERCISE_LIBRARY = {
+  push: ['Développé couché','Développé incliné','Dips','Écarté poulie','Développé militaire','Élévations latérales'],
+  pull: ['Pull-ups','Tirage barre','Tirage horizontal','Curl barre','Face pulls','Curl marteau'],
+  legs: ['Squat','Presse à cuisses','Leg curl','Extension quad','Fentes marchées','Mollets'],
+  pump: ['Curl barre','Tricep pushdown','Élévations latérales','Face pulls','Curl concentré','Extension overhead'],
+  repos: [],
+};
+
+const DEFAULT_HABITS = [
+  { id: 'lecture',    name: 'Lecture · 30 min',      color: 'purple' },
+  { id: 'salle',      name: 'Salle',                  color: 'green'  },
+  { id: 'cold',       name: 'Cold shower',             color: 'cyan'   },
+  { id: 'deepwork',   name: 'Deep work · 4h',          color: 'gold'   },
+  { id: 'sucre',      name: 'Pas de sucre',            color: 'red'    },
+  { id: 'meditation', name: 'Méditation · 10 min',     color: 'purple' },
+];
+
+const DEFAULT_POSITIONS = [
+  { symbol: 'NVDA',    name: 'Nvidia',            qty: 8,  avgCost: 720.00 },
+  { symbol: 'PLTR',    name: 'Palantir',          qty: 42, avgCost: 21.10  },
+  { symbol: 'GOOGL',   name: 'Alphabet',          qty: 12, avgCost: 162.30 },
+  { symbol: 'VWCE.DE', name: 'Vanguard FTSE All', qty: 38, avgCost: 110.20 },
+  { symbol: 'CSPX',    name: 'iShares S&P 500',   qty: 14, avgCost: 510.00 },
+];
+
+const COLS = [
+  { id: 'contacted', name: 'Contacté', color: 'mute'  },
+  { id: 'rdv',       name: 'RDV',      color: 'gold'  },
+  { id: 'signed',    name: 'Signé',    color: 'green' },
+];
+
+const DEFAULT_DEALS = [
+  { id:1, company:'Clinique St-Pierre',  revenue:'€2.4k', column:'contacted', tag:'cold',        hot:false },
+  { id:2, company:'Cabinet Dr. Mehdi',   revenue:'€1.2k', column:'contacted', tag:'cold',        hot:false },
+  { id:3, company:'Centre Médical Lyon', revenue:'€4.8k', column:'contacted', tag:'inbound',     hot:false },
+  { id:4, company:'Clinique Lambert',    revenue:'€3.6k', column:'rdv',       tag:'Mer 14h',     hot:true  },
+  { id:5, company:'Médipôle Toulouse',   revenue:'€8.2k', column:'rdv',       tag:'Jeu 10h',     hot:true  },
+  { id:6, company:'Dr. Rouvier',         revenue:'€2.8k', column:'signed',    tag:'récurrent',   hot:false },
+  { id:7, company:'Clinique Aurore',     revenue:'€4.4k', column:'signed',    tag:'récurrent',   hot:false },
+];
+
+const DEFAULT_CATEGORIES = [
+  { id:'salle',     name:'Salle / Suppléments', budget:120, color:'green'  },
+  { id:'bouffe',    name:'Bouffe',              budget:350, color:'gold'   },
+  { id:'transport', name:'Transport',           budget:80,  color:'cyan'   },
+  { id:'saas',      name:'Outils / SaaS',       budget:200, color:'purple' },
+  { id:'sortie',    name:'Sortie',              budget:100, color:'red'    },
+];
+
+// ═══════════════════════════════════════════════════════════════
+// STORAGE
+// ═══════════════════════════════════════════════════════════════
+function load(key, def) {
+  try { const v = localStorage.getItem('bjos_' + key); return v ? JSON.parse(v) : def; }
+  catch { return def; }
+}
+function save(key, val) {
+  try { localStorage.setItem('bjos_' + key, JSON.stringify(val)); } catch {}
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════
+const S = {
+  tab: load('tab', 'today'),
+  gym: load('gym', {
+    streak: 0,
+    lastWorkoutDate: null,
+    workouts: {},       // { 'YYYY-MM-DD': { type, exercises:[{name,sets:[{r,w}],done}] } }
+  }),
+  finance: load('finance', {
+    limit: 2000,
+    transactions: [],   // { id, date, name, cat, amount, income }
+    nextId: 1,
+  }),
+  stocks: load('stocks', {
+    positions: DEFAULT_POSITIONS,
+    prices: {},         // { symbol: { c, d, dp, lastFetch } }
+    nextId: DEFAULT_POSITIONS.length + 1,
+  }),
+  habits: load('habits', {
+    list: DEFAULT_HABITS,
+    completions: {},    // { 'YYYY-MM-DD': [habitId,...] }
+  }),
+  hub: load('hub', {
+    deals: DEFAULT_DEALS,
+    nextId: 8,
+  }),
+  categories: load('cats', DEFAULT_CATEGORIES),
+};
+
+function saveAll() {
+  save('tab', S.tab);
+  save('gym', S.gym);
+  save('finance', S.finance);
+  save('stocks', S.stocks);
+  save('habits', S.habits);
+  save('hub', S.hub);
+  save('cats', S.categories);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UTILITY
+// ═══════════════════════════════════════════════════════════════
+function today() { return new Date().toISOString().slice(0,10); }
+function fmtDate(iso) {
+  const d = new Date(iso + 'T12:00:00');
+  return d.toLocaleDateString('fr-FR', { day:'numeric', month:'short' });
+}
+function fmtNum(n, dec=0) {
+  return Number(n).toLocaleString('fr-FR', { minimumFractionDigits:dec, maximumFractionDigits:dec });
+}
+function cl(...args) { return args.filter(Boolean).join(' '); }
+
+function svgSpark(data, color, w, h, fill=true) {
+  if (!data || data.length < 2) return '';
+  const min = Math.min(...data), max = Math.max(...data), r = max - min || 1;
+  const pts = data.map((v,i)=>[
+    (i/(data.length-1))*w,
+    h - ((v-min)/r)*(h-3) - 1.5,
+  ]);
+  const d = pts.map((p,i)=>`${i?'L':'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+  const dFill = `${d} L${w},${h} L0,${h} Z`;
+  return `<svg class="sparkline" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    ${fill?`<path d="${dFill}" fill="${color}" fill-opacity="0.12"/>`:''}
+    <path d="${d}" stroke="${color}" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+function progressBar(pct, color, height=6) {
+  const clampedPct = Math.max(0, Math.min(100, pct));
+  const col = COLORS[color] || color;
+  const isOver = pct > 100;
+  const fillColor = isOver ? COLORS.red : col;
+  return `<div class="progress-wrap" style="height:${height}px">
+    <div class="progress-fill" style="width:${clampedPct}%;background:linear-gradient(90deg,${fillColor}80,${fillColor});box-shadow:0 0 10px ${fillColor}44"></div>
+  </div>`;
+}
+
+function pill(text, color) {
+  const col = COLORS[color] || color;
+  return `<span class="pill" style="color:${col};background:${col}18;border:1px solid ${col}28">${text}</span>`;
+}
+
+function card(content, accent='', style='', sm=false) {
+  const glowColor = ACCENT_GLOW[accent] || 'rgba(255,255,255,0.06)';
+  return `<div class="card${sm?' card-sm':''}" style="--accent-glow:${glowColor};${style}"><div class="card-body">${content}</div></div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GYM HELPERS
+// ═══════════════════════════════════════════════════════════════
+function todayWorkoutKey() { return today(); }
+
+function ensureTodayWorkout() {
+  const key = todayWorkoutKey();
+  if (!S.gym.workouts[key]) {
+    const dow = new Date().getDay();
+    const prog = GYM_PROGRAM[dow];
+    const exs = EXERCISE_LIBRARY[prog.type] || [];
+    S.gym.workouts[key] = {
+      type: prog.type,
+      exercises: exs.map(name => ({ name, sets: [], done: false })),
+    };
+    save('gym', S.gym);
+  }
+  return S.gym.workouts[key];
+}
+
+function recalcGymStreak() {
+  let streak = 0, d = new Date();
+  while (true) {
+    const key = d.toISOString().slice(0,10);
+    const w = S.gym.workouts[key];
+    const dow = d.getDay();
+    if (GYM_PROGRAM[dow].type === 'repos') {
+      d.setDate(d.getDate()-1); streak++;
+      if (streak > 365) break;
+      continue;
+    }
+    if (w && w.exercises.some(e=>e.done)) { streak++; d.setDate(d.getDate()-1); }
+    else break;
+  }
+  S.gym.streak = streak;
+  save('gym', S.gym);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HABITS HELPERS
+// ═══════════════════════════════════════════════════════════════
+function habitDoneToday(id) {
+  return (S.habits.completions[today()] || []).includes(id);
+}
+
+function habitStreak(id) {
+  let streak = 0, d = new Date();
+  while (streak < 365) {
+    const key = d.toISOString().slice(0,10);
+    if ((S.habits.completions[key] || []).includes(id)) { streak++; d.setDate(d.getDate()-1); }
+    else break;
+  }
+  return streak;
+}
+
+function toggleHabit(id) {
+  const key = today();
+  const arr = S.habits.completions[key] || [];
+  const idx = arr.indexOf(id);
+  if (idx >= 0) arr.splice(idx, 1);
+  else arr.push(id);
+  S.habits.completions[key] = arr;
+  save('habits', S.habits);
+  renderTab('habits');
+}
+
+function habitHeatValue(dateStr) {
+  const comps = S.habits.completions[dateStr] || [];
+  return comps.length / S.habits.list.length;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FINANCE HELPERS
+// ═══════════════════════════════════════════════════════════════
+function currentMonthTx() {
+  const prefix = today().slice(0,7);
+  return S.finance.transactions.filter(t => t.date.startsWith(prefix));
+}
+
+function catSpend(catId) {
+  return currentMonthTx()
+    .filter(t => !t.income && t.cat === catId)
+    .reduce((s,t)=>s+t.amount, 0);
+}
+
+function totalIncome() { return currentMonthTx().filter(t=>t.income).reduce((s,t)=>s+t.amount,0); }
+function totalSpend()  { return currentMonthTx().filter(t=>!t.income).reduce((s,t)=>s+t.amount,0); }
+function netBalance()  { return totalIncome() - totalSpend(); }
+
+// ═══════════════════════════════════════════════════════════════
+// FINNHUB
+// ═══════════════════════════════════════════════════════════════
+let stockFetchTimer = null;
+
+async function fetchQuote(symbol) {
+  try {
+    const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${FINNHUB_KEY}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.c || data.c === 0) return null;
+    return { c: data.c, d: data.d, dp: data.dp, pc: data.pc };
+  } catch { return null; }
+}
+
+async function fetchAllPrices() {
+  const symbols = S.stocks.positions.map(p=>p.symbol);
+  const results = await Promise.allSettled(symbols.map(s=>fetchQuote(s)));
+  let changed = false;
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled' && r.value) {
+      S.stocks.prices[symbols[i]] = { ...r.value, lastFetch: Date.now() };
+      changed = true;
+    }
+  });
+  if (changed) { save('stocks', S.stocks); renderTab('invest'); }
+}
+
+function startStockPolling() {
+  fetchAllPrices();
+  clearInterval(stockFetchTimer);
+  stockFetchTimer = setInterval(fetchAllPrices, 60000);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BOTTOM SHEET
+// ═══════════════════════════════════════════════════════════════
+let sheetData = {};
+
+function openSheet(contentHTML, data={}) {
+  sheetData = data;
+  document.getElementById('sheet-content').innerHTML = contentHTML;
+  const overlay = document.getElementById('sheet-overlay');
+  overlay.classList.add('open');
+  // wire up close
+  overlay.onclick = e => { if (e.target === overlay) closeSheet(); };
+}
+
+function closeSheet() {
+  const overlay = document.getElementById('sheet-overlay');
+  overlay.classList.remove('open');
+  sheetData = {};
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER: AUJOURD'HUI
+// ═══════════════════════════════════════════════════════════════
+function renderToday() {
+  const now = new Date();
+  const days = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+  const months = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+  const dow = now.getDay();
+  const dateStr = `${days[dow]} · ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+  const timeStr = now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+
+  // weekly strip (Mon–Sun view, current week)
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - ((dow + 6) % 7)); // Monday-start
+  const weekCells = Array.from({length:7}, (_,i) => {
+    const d = new Date(startOfWeek);
+    d.setDate(startOfWeek.getDate() + i);
+    const key = d.toISOString().slice(0,10);
+    const isToday = key === today();
+    const w = S.gym.workouts[key];
+    const done = w && w.exercises.some(e=>e.done);
+    const ddow = d.getDay();
+    const prog = GYM_PROGRAM[ddow];
+    return { d, key, isToday, done, prog, dateNum: d.getDate() };
+  });
+
+  // today's workout
+  const todayWorkout = ensureTodayWorkout();
+  const doneEx = todayWorkout.exercises.filter(e=>e.done).length;
+  const todayProg = GYM_PROGRAM[dow];
+
+  // finance summary
+  const net = netBalance();
+  const spend = totalSpend();
+  const lim = S.finance.limit;
+
+  // portfolio
+  const totalVal = S.stocks.positions.reduce((s,p)=>{
+    const pr = S.stocks.prices[p.symbol];
+    return s + p.qty * (pr ? pr.c : p.avgCost);
+  }, 0);
+  const totalCost = S.stocks.positions.reduce((s,p)=>s+p.qty*p.avgCost, 0);
+  const portfolioPL = totalVal - totalCost;
+
+  // habits today
+  const todayHabits = S.habits.completions[today()] || [];
+  const habTotal = S.habits.list.length;
+
+  const weekHTML = weekCells.map(wc => {
+    const cls = cl('week-day', wc.isToday&&'today', wc.done&&'done');
+    const dayLetter = ['L','M','M','J','V','S','D'][wc.d.getDay()===0?6:wc.d.getDay()-1];
+    return `<div class="${cls}">
+      <span class="day-label">${dayLetter}</span>
+      <span class="day-num">${wc.dateNum}</span>
+      ${wc.done && !wc.isToday ? '<div class="day-dot"></div>' : ''}
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="today-greeting animate-in stagger-1">
+    <div class="mono mute" style="font-size:10px">${dateStr} · ${timeStr}</div>
+    <div style="margin-top:10px;font-family:var(--serif);font-size:40px;font-weight:500;line-height:1.05">
+      Bonjour,<br><span style="font-style:italic;color:var(--green)">Bjorn.</span>
+    </div>
+    <div style="margin-top:10px;font-size:14px;color:var(--dim);line-height:1.5">
+      ${todayProg.type==='repos'
+        ? "Journée de repos — récupération active."
+        : `Session ${todayProg.name} · ${habTotal - todayHabits.length} habitudes restantes · suivi portfolio.`}
+    </div>
+  </div>
+
+  <div class="week-strip animate-in stagger-2">${weekHTML}</div>
+
+  <div class="px animate-in stagger-3" style="padding-top:10px;padding-bottom:6px">
+    ${card(`
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="mono" style="color:var(--green);font-size:10px">● Session du jour</div>
+          <div style="margin-top:8px;font-family:var(--serif);font-size:34px;font-weight:500">${todayProg.name}</div>
+          <div style="font-size:13px;color:var(--dim);margin-top:5px">
+            ${todayWorkout.type==='push'?'Pectoraux · Épaules · Triceps':
+              todayWorkout.type==='pull'?'Dos · Biceps · Trapèzes':
+              todayWorkout.type==='legs'?'Quadriceps · Ischio · Fessiers':
+              todayWorkout.type==='pump'?'Bras · Épaules · Isolation':
+              'Repos actif · Mobilité'}
+          </div>
+        </div>
+        <div style="width:52px;height:52px;border-radius:14px;background:rgba(200,245,90,.1);border:1px solid rgba(200,245,90,.3);display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--green)">⏶</div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <div class="stat-box"><div class="stat-mini-label">Exos</div><div class="stat-mini-val">${todayWorkout.exercises.length}</div></div>
+        <div class="stat-box"><div class="stat-mini-label">Faits</div><div class="stat-mini-val">${doneEx}/${todayWorkout.exercises.length}</div></div>
+        <div class="stat-box"><div class="stat-mini-label">Streak</div><div class="stat-mini-val">${S.gym.streak}j</div></div>
+      </div>
+      ${todayProg.type!=='repos'?`<button class="start-btn" onclick="switchTab('gym')">
+        <span>Démarrer la session</span><span>→</span>
+      </button>`:''}
+    `, 'green')}
+  </div>
+
+  <div class="two-col animate-in stagger-4">
+    ${card(`
+      <div class="mono" style="color:var(--gold);font-size:10px">Net du mois</div>
+      <div style="margin-top:8px;font-family:var(--serif);font-size:30px;font-weight:500;color:${net>=0?'var(--text)':'var(--red)'}">${net>=0?'+':'−'}€${fmtNum(Math.abs(net))}</div>
+      <div style="margin-top:8px;display:flex;justify-content:space-between">
+        <div class="mono" style="color:var(--green);font-size:9px">+€${fmtNum(totalIncome())}</div>
+        <div class="mono" style="color:var(--red);font-size:9px">−€${fmtNum(spend)}</div>
+      </div>
+      <div style="margin-top:8px">${progressBar((spend/lim)*100,'gold',4)}</div>
+    `, 'gold', 'cursor:pointer', true)}
+    ${card(`
+      <div class="mono" style="color:var(--green);font-size:10px">Streak</div>
+      <div style="margin-top:8px;display:flex;align-items:baseline;gap:4px">
+        <span style="font-family:var(--serif);font-size:32px;font-weight:500">${S.gym.streak}</span>
+        <span class="mono mute" style="font-size:9px">jours</span>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:3px">
+        ${Array.from({length:7},(_,i)=>`<div style="flex:1;height:16px;border-radius:3px;background:var(--green);opacity:${i<S.gym.streak%7+1?0.3+i*0.1:0.06}"></div>`).join('')}
+      </div>
+    `, 'green', 'cursor:pointer', true)}
+  </div>
+
+  <div class="px animate-in stagger-5" style="padding-top:6px;padding-bottom:6px">
+    ${card(`
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="mono" style="color:var(--cyan);font-size:10px"><span class="live-dot"></span>Portfolio</div>
+          <div style="margin-top:8px;font-family:var(--serif);font-size:30px;font-weight:500">€${fmtNum(totalVal)}</div>
+          <div style="margin-top:5px;font-family:var(--mono);font-size:11px;color:${portfolioPL>=0?'var(--cyan)':'var(--red)'}">
+            ${portfolioPL>=0?'+':'−'}€${fmtNum(Math.abs(portfolioPL))} aujourd'hui
+          </div>
+        </div>
+        ${svgSpark(S.stocks.positions.map(p=>{const pr=S.stocks.prices[p.symbol];return p.qty*(pr?pr.c:p.avgCost);}), 'var(--cyan)', 110, 50)}
+      </div>
+    `, 'cyan')}
+  </div>
+
+  <div class="px animate-in stagger-6" style="padding-top:6px;padding-bottom:20px">
+    ${card(`
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div class="mono" style="color:var(--purple);font-size:10px">Habitudes</div>
+          <div style="margin-top:6px;font-size:14px;font-weight:500">${todayHabits.length}/${habTotal} complétées aujourd'hui</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:var(--serif);font-size:28px;font-weight:500;color:var(--purple)">${Math.round(todayHabits.length/habTotal*100)}%</div>
+        </div>
+      </div>
+      <div style="margin-top:10px">${progressBar((todayHabits.length/habTotal)*100,'purple',6)}</div>
+    `, 'purple')}
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER: GYM
+// ═══════════════════════════════════════════════════════════════
+function renderGym() {
+  const now = new Date();
+  const dow = now.getDay();
+  ensureTodayWorkout();
+  const todayWork = S.gym.workouts[today()];
+
+  // week program strip
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - ((dow+6)%7));
+  const weekCells = Array.from({length:7},(_,i)=>{
+    const d = new Date(startOfWeek); d.setDate(startOfWeek.getDate()+i);
+    const key = d.toISOString().slice(0,10);
+    const ddow = d.getDay();
+    const prog = GYM_PROGRAM[ddow];
+    const isToday = key===today();
+    const w = S.gym.workouts[key];
+    const done = w&&w.exercises.some(e=>e.done);
+    return {d, key, isToday, done, prog, dayLabel:GYM_DAYS[ddow]};
+  });
+
+  const weekHTML = weekCells.map(wc=>{
+    const col = COLORS[wc.prog.color] || 'rgba(255,255,255,0.3)';
+    return `<div style="padding:9px 3px 9px;border-radius:14px;background:${wc.isToday?'var(--card-hi)':'var(--card)'};border:1px solid ${wc.isToday?col:'var(--border)'};text-align:center;box-shadow:${wc.isToday?`0 0 14px ${col}40`:'none'};position:relative">
+      <div class="mono mute" style="font-size:8px">${wc.dayLabel}</div>
+      <div style="font-size:11px;font-weight:600;color:${col};margin-top:5px">${wc.prog.name}</div>
+      ${wc.done?`<div style="position:absolute;top:5px;right:5px;width:5px;height:5px;border-radius:5px;background:${col};box-shadow:0 0 5px ${col}"></div>`:''}
+    </div>`;
+  }).join('');
+
+  // streak ring
+  const pct = Math.min(S.gym.streak / 52, 1);
+  const circ = 213;
+  const dash = pct * circ;
+  const todayType = GYM_PROGRAM[dow];
+
+  // exercises
+  const exHTML = todayWork.exercises.map((ex, i)=>{
+    const accent = ex.done ? 'green' : null;
+    const glowColor = ex.done ? ACCENT_GLOW.green : 'rgba(255,255,255,0.04)';
+    return `<div class="exercise-card animate-in stagger-${Math.min(i+3,8)}">
+      <div class="card" style="--accent-glow:${glowColor}">
+        <div class="card-body" style="padding:0">
+          <div class="ex-header">
+            <div class="ex-check${ex.done?' done':''}" onclick="toggleExercise('${today()}',${i})" title="Marquer fait">
+              ${ex.done?'✓':''}
+            </div>
+            <div class="ex-name${ex.done?' done':''}">${ex.name}</div>
+            <div class="ex-sets-count">${ex.sets.length} set${ex.sets.length!==1?'s':''}</div>
+          </div>
+          <div class="ex-sets">
+            ${ex.sets.map((s,j)=>`<div class="set-chip">
+              <span class="set-num">${j+1}</span>
+              <span>${s.r}</span><span class="set-num">×</span><span>${s.w}${s.w!=='PC'?'kg':''}</span>
+              <span class="set-del" onclick="deleteSet('${today()}',${i},${j})" title="Supprimer">×</span>
+            </div>`).join('')}
+            <button class="add-set-btn" onclick="openAddSet('${today()}',${i})">+ set</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="page-header animate-in stagger-1">
+    <div class="page-sub">Programme hebdomadaire</div>
+    <div class="page-title">Salle.</div>
+  </div>
+
+  <div class="px animate-in stagger-2" style="padding-top:10px;padding-bottom:8px">
+    ${card(`
+      <div style="display:flex;align-items:center;gap:16px">
+        <div style="flex:1">
+          <div class="mono" style="color:var(--green);font-size:10px">● Streak active</div>
+          <div style="margin-top:6px;display:flex;align-items:baseline;gap:6px">
+            <span class="num" style="font-size:52px;color:var(--green)">${S.gym.streak}</span>
+            <span style="font-size:14px;color:var(--dim)">jours</span>
+          </div>
+          <div class="mono mute" style="margin-top:3px;font-size:9px">record · 52 jours</div>
+        </div>
+        <svg width="80" height="80" viewBox="0 0 80 80">
+          <circle cx="40" cy="40" r="34" stroke="rgba(255,255,255,0.06)" stroke-width="6" fill="none"/>
+          <circle cx="40" cy="40" r="34" stroke="var(--green)" stroke-width="6" fill="none"
+            stroke-dasharray="${dash.toFixed(1)} ${circ}"
+            stroke-linecap="round" transform="rotate(-90 40 40)"
+            style="filter:drop-shadow(0 0 6px rgba(200,245,90,.7))"/>
+          <text x="40" y="46" text-anchor="middle" font-family="Georgia,serif" font-size="18" fill="#f5f5f5">${Math.round(pct*100)}%</text>
+        </svg>
+      </div>
+    `, 'green')}
+  </div>
+
+  <div class="mono dim px-l animate-in stagger-2" style="margin-top:10px;margin-bottom:6px">Semaine</div>
+  <div class="week-strip animate-in stagger-2" style="padding-top:0">${weekHTML}</div>
+
+  <div class="mono dim px-l animate-in stagger-3" style="margin-top:14px;margin-bottom:8px">
+    ${todayType.name} · Aujourd'hui
+    <span class="mono" style="float:right;color:var(--green)">${todayWork.exercises.filter(e=>e.done).length}/${todayWork.exercises.length}</span>
+  </div>
+  ${todayWork.exercises.length > 0 ? exHTML : `<div class="px" style="padding-bottom:20px"><div class="card"><div class="card-body" style="text-align:center;color:var(--mute);padding:24px">Repos aujourd'hui — récupère bien !</div></div></div>`}`;
+}
+
+function toggleExercise(dateKey, idx) {
+  const w = S.gym.workouts[dateKey];
+  if (!w) return;
+  w.exercises[idx].done = !w.exercises[idx].done;
+  recalcGymStreak();
+  renderTab('gym');
+  if (S.tab==='today') renderTab('today');
+}
+
+function deleteSet(dateKey, exIdx, setIdx) {
+  const w = S.gym.workouts[dateKey];
+  if (!w) return;
+  w.exercises[exIdx].sets.splice(setIdx,1);
+  save('gym', S.gym);
+  renderTab('gym');
+}
+
+function openAddSet(dateKey, exIdx) {
+  const w = S.gym.workouts[dateKey];
+  const ex = w.exercises[exIdx];
+  const lastSet = ex.sets[ex.sets.length-1] || {r:'',w:''};
+  openSheet(`
+    <div class="sheet-title">Ajouter un set</div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--mute);margin-bottom:16px;text-transform:uppercase;letter-spacing:.06em">${ex.name}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="sheet-field">
+        <label>Répétitions</label>
+        <input id="set-reps" class="sheet-input" type="number" min="1" max="100" placeholder="12" value="${lastSet.r||''}" inputmode="numeric">
+      </div>
+      <div class="sheet-field">
+        <label>Poids (kg)</label>
+        <input id="set-weight" class="sheet-input" type="text" placeholder="60" value="${lastSet.w||''}">
+      </div>
+    </div>
+    <button class="sheet-btn sheet-btn-primary" onclick="saveSet('${dateKey}',${exIdx})">Ajouter le set</button>
+  `, {dateKey, exIdx});
+  setTimeout(()=>document.getElementById('set-reps')?.focus(),100);
+}
+
+function saveSet(dateKey, exIdx) {
+  const reps = document.getElementById('set-reps')?.value?.trim();
+  const weight = document.getElementById('set-weight')?.value?.trim();
+  if (!reps) return;
+  const w = S.gym.workouts[dateKey];
+  w.exercises[exIdx].sets.push({ r: parseInt(reps)||0, w: weight||'PC' });
+  save('gym', S.gym);
+  closeSheet();
+  renderTab('gym');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER: FINANCES
+// ═══════════════════════════════════════════════════════════════
+function renderFinance() {
+  const txs = currentMonthTx().sort((a,b)=>b.date.localeCompare(a.date));
+  const income = totalIncome();
+  const spend = totalSpend();
+  const net = income - spend;
+  const saveRate = income > 0 ? Math.round((net/income)*100) : 0;
+  const lim = S.finance.limit;
+  const spendPct = lim > 0 ? (spend/lim)*100 : 0;
+  const daysLeft = new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).getDate() - new Date().getDate();
+
+  const catRows = S.categories.map(c=>{
+    const spent = catSpend(c.id);
+    const pct = c.budget > 0 ? (spent/c.budget)*100 : 0;
+    const col = COLORS[c.color];
+    return `<div class="card card-sm" style="margin-bottom:8px">
+      <div class="card-body">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="display:flex;align-items:center;gap:9px">
+            <div style="width:8px;height:8px;border-radius:8px;background:${col};box-shadow:0 0 5px ${col}"></div>
+            <span style="font-size:13px;font-weight:500">${c.name}</span>
+          </div>
+          <div class="mono" style="font-size:10px;color:var(--text)">€${fmtNum(spent,0)} <span style="color:var(--mute)">/ ${c.budget}</span></div>
+        </div>
+        <div style="margin-top:9px">${progressBar(pct,c.color,4)}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const txRows = txs.slice(0,8).map(t=>{
+    const cat = S.categories.find(c=>c.id===t.cat);
+    const col = t.income ? COLORS.green : (cat ? COLORS[cat.color] : 'rgba(245,245,245,0.38)');
+    const catName = t.income ? 'Revenu' : (cat?.name||t.cat);
+    return `<div class="tx-row">
+      <div class="tx-icon" style="background:${col}18;border:1px solid ${col}28;color:${col}">${t.income?'↓':'↑'}</div>
+      <div class="tx-info">
+        <div class="tx-name">${t.name}</div>
+        <div class="tx-sub">${fmtDate(t.date)} · ${catName}</div>
+      </div>
+      <div class="tx-amt" style="color:${t.income?'var(--green)':'var(--text)'}">
+        ${t.income?'+':'−'}€${fmtNum(t.amount,2)}
+      </div>
+      <button class="tx-del" onclick="deleteTx(${t.id})" title="Supprimer">×</button>
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="page-header animate-in stagger-1">
+    <div class="page-sub">${new Date().toLocaleString('fr-FR',{month:'long',year:'numeric'})}</div>
+    <div class="page-title" style="font-style:italic">Argent.</div>
+  </div>
+
+  <div class="px animate-in stagger-2" style="padding-top:10px;padding-bottom:6px">
+    ${card(`
+      <div class="mono" style="color:var(--gold);font-size:10px">Net du mois</div>
+      <div style="margin-top:10px;display:flex;align-items:flex-end;gap:4px">
+        <span style="font-family:var(--serif);font-size:24px;color:var(--mute)">€</span>
+        <span class="num" style="font-size:60px;color:${net>=0?'var(--gold)':'var(--red)'}">${fmtNum(Math.abs(net))}</span>
+        ${net<0?'<span style="font-family:var(--serif);font-size:14px;color:var(--red)">déficit</span>':''}
+      </div>
+      <div style="margin-top:14px;display:flex;gap:16px">
+        <div>
+          <div class="mono mute" style="font-size:9px">Revenus</div>
+          <div style="font-family:var(--serif);font-size:17px;color:var(--green);margin-top:2px">+€${fmtNum(income)}</div>
+        </div>
+        <div style="width:1px;background:var(--border)"></div>
+        <div>
+          <div class="mono mute" style="font-size:9px">Dépensé</div>
+          <div style="font-family:var(--serif);font-size:17px;color:var(--red);margin-top:2px">−€${fmtNum(spend)}</div>
+        </div>
+        <div style="width:1px;background:var(--border)"></div>
+        <div>
+          <div class="mono mute" style="font-size:9px">Épargne</div>
+          <div style="font-family:var(--serif);font-size:17px;margin-top:2px">${saveRate}%</div>
+        </div>
+      </div>
+    `, 'gold')}
+  </div>
+
+  <div class="px animate-in stagger-3" style="padding-top:6px;padding-bottom:6px">
+    ${card(`
+      <div style="display:flex;justify-content:space-between;align-items:flex-end">
+        <div>
+          <div class="mono dim" style="font-size:10px">Budget mensuel</div>
+          <div style="margin-top:6px"><span class="num" style="font-size:28px">€${fmtNum(spend)}</span></div>
+        </div>
+        <div style="text-align:right">
+          <div class="mono mute" style="font-size:9px">limite</div>
+          <input id="budget-limit-inp" class="budget-limit-edit" value="€${fmtNum(lim)}" onblur="saveBudgetLimit(this.value)" onkeydown="if(event.key==='Enter')this.blur()">
+        </div>
+      </div>
+      <div style="margin-top:14px">${progressBar(spendPct,'gold',8)}</div>
+      <div style="margin-top:8px;display:flex;justify-content:space-between">
+        <span class="mono" style="color:${spendPct>90?'var(--red)':'var(--gold)'}">${fmtNum(spendPct,0)}% utilisé</span>
+        <span class="mono mute">${daysLeft} jours restants</span>
+      </div>
+    `)}
+  </div>
+
+  <div class="mono dim px-l animate-in stagger-4" style="margin-top:12px;margin-bottom:8px">Catégories</div>
+  <div class="px animate-in stagger-4">${catRows}</div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center" class="px-l animate-in stagger-5" style="margin-top:10px">
+    <div class="mono dim" style="margin-top:12px;margin-bottom:8px">Transactions récentes</div>
+  </div>
+  <div class="px animate-in stagger-5" style="padding-bottom:6px">
+    <div class="card"><div class="card-body" style="padding:0">
+      ${txRows||`<div style="padding:20px;text-align:center;color:var(--mute);font-size:13px">Aucune transaction ce mois-ci</div>`}
+    </div></div>
+  </div>
+
+  <div class="px animate-in stagger-6" style="padding-top:10px;padding-bottom:20px">
+    <button class="sheet-btn sheet-btn-primary" onclick="openAddTx()">+ Ajouter une transaction</button>
+  </div>`;
+}
+
+function saveBudgetLimit(val) {
+  const num = parseFloat(val.replace(/[€\s]/g,'').replace(',','.'));
+  if (!isNaN(num) && num > 0) { S.finance.limit = num; save('finance', S.finance); renderTab('finance'); }
+}
+
+function deleteTx(id) {
+  S.finance.transactions = S.finance.transactions.filter(t=>t.id!==id);
+  save('finance', S.finance);
+  renderTab('finance');
+  if (S.tab==='today') renderTab('today');
+}
+
+function openAddTx() {
+  const catOpts = S.categories.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  openSheet(`
+    <div class="sheet-title">Nouvelle transaction</div>
+    <div class="sheet-toggle">
+      <button id="btn-income" class="toggle-btn active-income" onclick="setTxType('income')">↓ Revenu</button>
+      <button id="btn-expense" class="toggle-btn" onclick="setTxType('expense')">↑ Dépense</button>
+    </div>
+    <input type="hidden" id="tx-type" value="income">
+    <div class="sheet-field">
+      <label>Description</label>
+      <input id="tx-name" class="sheet-input" type="text" placeholder="ex: Stripe — client">
+    </div>
+    <div class="sheet-field">
+      <label>Montant (€)</label>
+      <input id="tx-amount" class="sheet-input" type="number" min="0" step="0.01" placeholder="0.00" inputmode="decimal">
+    </div>
+    <div id="cat-field" class="sheet-field" style="display:none">
+      <label>Catégorie</label>
+      <select id="tx-cat" class="sheet-select">${catOpts}</select>
+    </div>
+    <button class="sheet-btn sheet-btn-primary" onclick="saveTx()">Enregistrer</button>
+  `);
+}
+
+function setTxType(type) {
+  document.getElementById('tx-type').value = type;
+  document.getElementById('btn-income').className = 'toggle-btn' + (type==='income'?' active-income':'');
+  document.getElementById('btn-expense').className = 'toggle-btn' + (type==='expense'?' active-expense':'');
+  document.getElementById('cat-field').style.display = type==='expense'?'block':'none';
+}
+
+function saveTx() {
+  const type = document.getElementById('tx-type').value;
+  const name = document.getElementById('tx-name').value.trim();
+  const amount = parseFloat(document.getElementById('tx-amount').value);
+  const cat = type==='expense' ? document.getElementById('tx-cat')?.value : 'income';
+  if (!name || isNaN(amount) || amount<=0) return;
+  S.finance.transactions.push({
+    id: S.finance.nextId++,
+    date: today(),
+    name, cat,
+    amount,
+    income: type==='income',
+  });
+  save('finance', S.finance);
+  closeSheet();
+  renderTab('finance');
+  if (S.tab==='today') renderTab('today');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER: INVESTIR
+// ═══════════════════════════════════════════════════════════════
+function renderInvest() {
+  const positions = S.stocks.positions;
+  const priceMap = S.stocks.prices;
+
+  const totalVal = positions.reduce((s,p)=>{
+    const pr = priceMap[p.symbol];
+    return s + p.qty*(pr?pr.c:p.avgCost);
+  }, 0);
+  const totalCost = positions.reduce((s,p)=>s+p.qty*p.avgCost, 0);
+  const totalPL = totalVal - totalCost;
+  const totalPLpct = totalCost>0?(totalPL/totalCost)*100:0;
+  const todayChange = positions.reduce((s,p)=>{
+    const pr = priceMap[p.symbol];
+    return s + (pr?pr.d*p.qty:0);
+  }, 0);
+
+  const isLoading = Object.keys(priceMap).length === 0;
+
+  // sparkline data from positions sorted by alloc
+  const sparkData = [8.4,8.6,8.5,9.1,9.4,9.2,9.8,10.2,10.6,10.4,11.1,11.6,totalVal/1000];
+
+  const posRows = positions.map((p,i)=>{
+    const pr = priceMap[p.symbol];
+    const price = pr ? pr.c : p.avgCost;
+    const value = p.qty * price;
+    const ppl = (price - p.avgCost) * p.qty;
+    const ppct = ((price - p.avgCost) / p.avgCost) * 100;
+    const colKeys = ['green','cyan','gold','purple','cyan'];
+    const colKey = colKeys[i % colKeys.length];
+    const col = COLORS[colKey];
+    const sparkVals = Array.from({length:8},(_,j)=>{
+      const noise = (Math.sin(i*7+j*3)*0.04+0.98);
+      return p.avgCost * noise * (1 + (ppct/100) * (j/7));
+    });
+    sparkVals[7] = price;
+    const dayChg = pr ? pr.d : 0;
+    const dayChgPct = pr ? pr.dp : 0;
+
+    return `<div class="card card-sm animate-in stagger-${Math.min(i+4,8)}" style="margin-bottom:8px">
+      <div class="card-body" style="padding:0">
+        <div class="position-row">
+          <div class="pos-icon" style="background:${col}18;border:1px solid ${col}28;color:${col}">${p.symbol.replace('.DE','').replace('.L','')}</div>
+          <div class="pos-info">
+            <div class="pos-name">
+              <span>${p.name}</span>
+              <span style="font-family:var(--serif);font-size:15px">€${fmtNum(value,0)}</span>
+            </div>
+            <div class="pos-sub">
+              <span>${p.qty} × €${fmtNum(price,2)}${isLoading?` <span class="loading-spin"></span>`:''}</span>
+              <span style="color:${ppl>=0?'var(--green)':'var(--red)'}">
+                ${ppl>=0?'+':'−'}€${fmtNum(Math.abs(ppl),0)} (${ppct>=0?'+':''}${fmtNum(ppct,1)}%)
+              </span>
+            </div>
+            ${pr?`<div class="mono" style="font-size:9px;margin-top:4px;color:${dayChg>=0?'var(--green)':'var(--red)'}">${dayChg>=0?'+':''}€${fmtNum(dayChg,2)} aujourd'hui (${dayChgPct>=0?'+':''}${fmtNum(dayChgPct,2)}%)</div>`:''}
+          </div>
+        </div>
+        <div class="pos-spark" style="padding:0 14px 12px">
+          ${svgSpark(sparkVals, col, 310, 26)}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="page-header animate-in stagger-1">
+    <div class="page-sub">Portfolio <span class="live-dot" style="margin-left:6px"></span> live</div>
+    <div class="page-title">Investir.</div>
+  </div>
+
+  <div class="px animate-in stagger-2" style="padding-top:10px;padding-bottom:6px">
+    ${card(`
+      <div class="mono" style="color:var(--cyan);font-size:10px"><span class="live-dot"></span>Valeur totale</div>
+      <div style="margin-top:12px;display:flex;align-items:flex-end;gap:5px">
+        <span style="font-family:var(--serif);font-size:24px;color:var(--mute)">€</span>
+        <span class="num" style="font-size:60px">${fmtNum(totalVal,0)}</span>
+      </div>
+      <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        ${pill(`↗ +€${fmtNum(Math.abs(totalPL),0)}`, 'cyan')}
+        <span class="mono" style="color:${totalPLpct>=0?'var(--cyan)':'var(--red)'};font-size:10px">+${fmtNum(totalPLpct,2)}% all-time</span>
+        ${todayChange!==0?`<span class="mono" style="color:${todayChange>=0?'var(--green)':'var(--red)'};font-size:10px">${todayChange>=0?'+':'−'}€${fmtNum(Math.abs(todayChange),0)} aujourd'hui</span>`:''}
+      </div>
+      <div style="margin-top:16px;margin-left:-4px;margin-right:-4px">
+        ${svgSpark(sparkData,'var(--cyan)',330,70)}
+      </div>
+      <div style="margin-top:10px;display:flex;justify-content:space-between">
+        ${['1J','1S','1M','3M','1A','TT'].map((t,i)=>`<button class="range-btn${i===4?' active':''}">${t}</button>`).join('')}
+      </div>
+    `, 'cyan')}
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 22px 8px" class="animate-in stagger-3">
+    <div class="mono dim">Positions</div>
+    <div class="mono mute">${positions.length} actifs · ${isLoading?'<span class="loading-spin"></span>':'live'}</div>
+  </div>
+
+  <div class="px animate-in stagger-3" style="padding-bottom:20px">${posRows}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER: HABITS
+// ═══════════════════════════════════════════════════════════════
+function renderHabits() {
+  const list = S.habits.list;
+  const todayDone = S.habits.completions[today()] || [];
+  const doneCount = todayDone.length;
+  const pct = list.length > 0 ? doneCount / list.length : 0;
+  const circ = 213;
+
+  // 30-day heatmap
+  const heat = Array.from({length:30},(_,i)=>{
+    const d = new Date();
+    d.setDate(d.getDate() - (29-i));
+    const key = d.toISOString().slice(0,10);
+    const comps = S.habits.completions[key] || [];
+    return { val: list.length>0 ? comps.length/list.length : 0, today: i===29 };
+  });
+
+  const habitRows = list.map((h,i)=>{
+    const done = todayDone.includes(h.id);
+    const streak = habitStreak(h.id);
+    const col = COLORS[h.color];
+    return `<div class="card card-sm animate-in stagger-${Math.min(i+4,8)}" style="margin-bottom:8px;--accent-glow:${done?ACCENT_GLOW[h.color]:'rgba(255,255,255,0.04)'}">
+      <div class="card-body">
+        <div class="habit-row" style="padding:0">
+          <div class="habit-check${done?' done':''}" style="${done?`background:${col};border-color:${col};color:#0a0a0a;box-shadow:0 0 12px ${col}55`:''}" onclick="toggleHabit('${h.id}')">
+            ${done?'✓':''}
+          </div>
+          <div class="habit-name${done?' done':''}">${h.name}</div>
+          <div class="habit-streak">
+            <span class="streak-dot" style="color:${col}">●</span>
+            <span class="streak-count">${streak}</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const heatCells = heat.map(h=>{
+    const opa = h.val===0 ? 0.05 : 0.2 + h.val*0.75;
+    return `<div class="heat-cell" style="background:${h.val===0?'rgba(255,255,255,.04)':'var(--purple)'};opacity:${opa};${h.today?'border:1.5px solid var(--purple)':''}"></div>`;
+  }).join('');
+
+  return `
+  <div class="page-header animate-in stagger-1">
+    <div class="page-sub">Routine quotidienne</div>
+    <div class="page-title" style="font-style:italic">Habits.</div>
+  </div>
+
+  <div class="px animate-in stagger-2" style="padding-top:10px;padding-bottom:8px">
+    ${card(`
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="mono" style="color:var(--purple);font-size:10px">Aujourd'hui</div>
+          <div style="margin-top:10px;display:flex;align-items:baseline;gap:6px">
+            <span class="num" style="font-size:52px">${doneCount}</span>
+            <span style="font-family:var(--serif);font-size:28px;color:var(--mute)">/${list.length}</span>
+          </div>
+          <div class="mono mute" style="margin-top:4px;font-size:10px">${Math.round(pct*100)}% complété</div>
+        </div>
+        <svg width="80" height="80" viewBox="0 0 80 80">
+          <circle cx="40" cy="40" r="34" stroke="rgba(255,255,255,0.06)" stroke-width="6" fill="none"/>
+          <circle cx="40" cy="40" r="34" stroke="var(--purple)" stroke-width="6" fill="none"
+            stroke-dasharray="${(pct*circ).toFixed(1)} ${circ}"
+            stroke-linecap="round" transform="rotate(-90 40 40)"
+            style="filter:drop-shadow(0 0 8px rgba(167,139,250,.8))"/>
+        </svg>
+      </div>
+    `, 'purple')}
+  </div>
+
+  <div class="mono dim px-l animate-in stagger-3" style="margin-top:12px;margin-bottom:8px">Checklist</div>
+  <div class="px animate-in stagger-3">${habitRows}</div>
+
+  <div class="mono dim px-l animate-in stagger-5" style="margin-top:14px;margin-bottom:8px">30 derniers jours</div>
+  <div class="px animate-in stagger-5" style="padding-bottom:20px">
+    ${card(`
+      <div class="heat-grid">${heatCells}</div>
+      <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center">
+        <span class="mono mute" style="font-size:9px">Moins</span>
+        <div style="display:flex;gap:4px">
+          ${[.08,.3,.55,.9].map(o=>`<div style="width:12px;height:12px;border-radius:3px;background:var(--purple);opacity:${o}"></div>`).join('')}
+        </div>
+        <span class="mono mute" style="font-size:9px">Plus</span>
+      </div>
+    `)}
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER: HUB
+// ═══════════════════════════════════════════════════════════════
+function renderHub() {
+  const deals = S.hub.deals;
+  const totalDeals = deals.length;
+  const totalRev = deals.filter(d=>d.column==='signed')
+    .reduce((s,d)=>{
+      const m = d.revenue.match(/[\d.]+/);
+      const mult = d.revenue.includes('k')?1000:1;
+      return s + (m?parseFloat(m[0])*mult:0);
+    },0);
+
+  const colHTML = COLS.map(col=>{
+    const colDeals = deals.filter(d=>d.column===col.id);
+    const colColor = COLORS[col.color] || 'rgba(245,245,245,0.38)';
+    const nextCol = COLS[COLS.findIndex(c=>c.id===col.id)+1];
+
+    const cards = colDeals.map(d=>{
+      const accent = d.hot ? col.color : null;
+      const glowColor = d.hot ? (ACCENT_GLOW[col.color]||'rgba(255,255,255,0.04)') : 'rgba(255,255,255,0.04)';
+      return `<div class="card card-sm" style="--accent-glow:${glowColor};margin-bottom:8px">
+        <div class="card-body deal-card">
+          <div class="deal-name">${d.company}</div>
+          <div class="deal-footer">
+            <span class="deal-rev" style="color:${colColor}">${d.revenue}</span>
+            <div class="deal-actions">
+              ${nextCol?`<button class="deal-move" onclick="moveDeal(${d.id},'${nextCol.id}')" title="Avancer">→</button>`:''}
+              <button class="deal-del" onclick="deleteDeal(${d.id})" title="Supprimer">×</button>
+            </div>
+          </div>
+          ${d.tag?`<div class="mono mute" style="font-size:9px;margin-top:5px">${d.tag}</div>`:''}
+        </div>
+      </div>`;
+    }).join('');
+
+    return `<div class="kanban-col">
+      <div class="col-header">
+        <div>
+          <span class="col-dot" style="background:${colColor};box-shadow:0 0 5px ${colColor}"></span>
+          <span class="col-title">${col.name}</span>
+        </div>
+        <span class="col-count">${colDeals.length}</span>
+      </div>
+      ${cards}
+      <button class="add-deal-btn" onclick="openAddDeal('${col.id}')">+ Ajouter</button>
+    </div>`;
+  }).join('');
+
+  // MRR from signed deals
+  const mrrData = [1.2,1.4,1.6,1.8,2.0,2.2,2.4, totalRev/1000||2.8];
+
+  return `
+  <div class="page-header animate-in stagger-1">
+    <div class="page-sub">MediFlow AI · Sales</div>
+    <div class="page-title">Hub.</div>
+  </div>
+
+  <div class="px animate-in stagger-2" style="padding-top:10px;padding-bottom:6px">
+    ${card(`
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="mono" style="color:var(--cyan);font-size:10px">MediFlow MRR</div>
+          <div style="margin-top:8px">
+            <span class="mono mute" style="font-size:16px">€</span>
+            <span class="num" style="font-size:36px">${fmtNum(totalRev)}</span>
+          </div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--cyan);margin-top:4px">
+            ${deals.filter(d=>d.column==='signed').length} contrats actifs
+          </div>
+        </div>
+        ${svgSpark(mrrData,'var(--cyan)',120,48)}
+      </div>
+    `,'cyan')}
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center" class="animate-in stagger-3">
+    <div class="mono dim px-l" style="margin-top:14px;margin-bottom:8px">Pipeline</div>
+    <div class="mono mute px-l" style="margin-top:14px;margin-bottom:8px">${totalDeals} deals</div>
+  </div>
+  <div class="kanban-wrap animate-in stagger-3">${colHTML}</div>`;
+}
+
+function moveDeal(id, targetCol) {
+  const deal = S.hub.deals.find(d=>d.id===id);
+  if (deal) { deal.column = targetCol; save('hub', S.hub); renderTab('hub'); }
+}
+
+function deleteDeal(id) {
+  S.hub.deals = S.hub.deals.filter(d=>d.id!==id);
+  save('hub', S.hub);
+  renderTab('hub');
+}
+
+function openAddDeal(colId) {
+  openSheet(`
+    <div class="sheet-title">Nouveau deal</div>
+    <div class="sheet-field">
+      <label>Entreprise / Contact</label>
+      <input id="deal-company" class="sheet-input" type="text" placeholder="ex: Clinique du Parc">
+    </div>
+    <div class="sheet-field">
+      <label>Valeur mensuelle</label>
+      <input id="deal-rev" class="sheet-input" type="text" placeholder="ex: €2.4k">
+    </div>
+    <div class="sheet-field">
+      <label>Tag / Note</label>
+      <input id="deal-tag" class="sheet-input" type="text" placeholder="ex: inbound, Lun 10h…">
+    </div>
+    <input type="hidden" id="deal-col" value="${colId}">
+    <button class="sheet-btn sheet-btn-primary" onclick="saveDeal()">Ajouter au pipeline</button>
+  `, {colId});
+}
+
+function saveDeal() {
+  const company = document.getElementById('deal-company').value.trim();
+  const revenue = document.getElementById('deal-rev').value.trim();
+  const tag     = document.getElementById('deal-tag').value.trim();
+  const column  = document.getElementById('deal-col').value;
+  if (!company) return;
+  S.hub.deals.push({ id: S.hub.nextId++, company, revenue, column, tag, hot: false });
+  save('hub', S.hub);
+  closeSheet();
+  renderTab('hub');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// NAVIGATION & ROUTER
+// ═══════════════════════════════════════════════════════════════
+const RENDERERS = {
+  today:   renderToday,
+  gym:     renderGym,
+  finance: renderFinance,
+  invest:  renderInvest,
+  habits:  renderHabits,
+  hub:     renderHub,
+};
+
+function renderTab(tabId) {
+  const el = document.getElementById('screen-' + tabId);
+  if (!el) return;
+  el.innerHTML = RENDERERS[tabId]();
+}
+
+function switchTab(tabId) {
+  if (S.tab === tabId) return;
+  const prev = document.getElementById('screen-' + S.tab);
+  const next = document.getElementById('screen-' + tabId);
+  if (prev) { prev.classList.add('hidden'); }
+  S.tab = tabId;
+  save('tab', tabId);
+  if (next) {
+    next.classList.remove('hidden');
+    renderTab(tabId);
+  }
+  updateNav();
+  if (tabId === 'invest') startStockPolling();
+}
+
+function updateNav() {
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    const isActive = btn.dataset.tab === S.tab;
+    btn.classList.toggle('active', isActive);
+    const tab = TABS.find(t=>t.id===btn.dataset.tab);
+    const col = COLORS[tab.accent] || 'var(--green)';
+    btn.style.setProperty('--accent', col + '33');
+    btn.querySelector('.nav-icon').style.color = isActive ? col : '';
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+function initNav() {
+  const nav = document.getElementById('nav-inner');
+  nav.innerHTML = TABS.map(t=>`
+    <button class="nav-btn" data-tab="${t.id}" onclick="switchTab('${t.id}')">
+      <span class="nav-icon">${t.icon}</span>
+      <span class="nav-label">${t.label}</span>
+    </button>
+  `).join('');
+}
+
+function initScreens() {
+  const content = document.getElementById('tab-content');
+  content.innerHTML = TABS.map(t=>`
+    <div id="screen-${t.id}" class="tab-screen${t.id!==S.tab?' hidden':''}"></div>
+  `).join('');
+}
+
+function init() {
+  initNav();
+  initScreens();
+  ensureTodayWorkout();
+  recalcGymStreak();
+  renderTab(S.tab);
+  updateNav();
+  if (S.tab === 'invest') startStockPolling();
+
+  // clock tick for today tab
+  setInterval(()=>{ if (S.tab==='today') renderTab('today'); }, 60000);
+
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  }
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

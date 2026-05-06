@@ -1,0 +1,19 @@
+{
+  "name": "Bjorn OS",
+  "short_name": "Bjorn OS",
+  "description": "Personal life OS — gym, finances, investissements, habitudes, pipeline",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080808",
+  "theme_color": "#080808",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "health", "finance"]
+}
