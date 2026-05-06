@@ -602,6 +602,38 @@ button { cursor: pointer; border: none; background: none; color: inherit; }
 .sparkline { display: block; overflow: visible; }
 .bar-chart  { display: flex; gap: 4px; align-items: flex-end; }
 .bar-item   { flex: 1; border-radius: 3px; min-height: 4px; }
+
+/* ── EDIT MODE ───────────────────────────────────────────────── */
+[data-lp] { -webkit-touch-callout: none; user-select: none; cursor: pointer; }
+[data-lp]:active { opacity: 0.6; }
+[data-edit] { cursor: pointer; transition: opacity .12s; }
+[data-edit]:hover { opacity: 0.75; }
+.inline-input {
+  background: transparent; border: none;
+  border-bottom: 1.5px solid rgba(255,255,255,0.3);
+  color: var(--text); font-family: inherit; font-size: inherit;
+  font-weight: inherit; font-style: inherit;
+  outline: none; padding: 1px 0; width: 100%; min-width: 40px;
+}
+.add-ex-btn {
+  display: block; width: calc(100% - 36px); margin: 0 18px 20px;
+  padding: 11px; border-radius: 14px;
+  border: 1px dashed var(--border-hi);
+  font-family: var(--mono); font-size: 10px;
+  color: var(--mute); text-align: center; transition: all .15s;
+}
+.add-ex-btn:hover { border-color: rgba(200,245,90,.4); color: var(--green); }
+.pos-del {
+  padding: 3px 8px; border-radius: 6px; font-size: 14px;
+  color: var(--mute); background: rgba(245,90,107,.06);
+  border: 1px solid rgba(245,90,107,.15); transition: all .15s; flex-shrink: 0;
+}
+.pos-del:hover { color: var(--red); background: rgba(245,90,107,.15); }
+.color-swatch {
+  width: 32px; height: 32px; border-radius: 10px;
+  border: 2.5px solid transparent; transition: border-color .15s; cursor: pointer;
+}
+.color-swatch.selected { border-color: white; }
 </style>
 </head>
 <body>
@@ -807,6 +839,57 @@ function card(content, accent='', style='', sm=false) {
   return `<div class="card${sm?' card-sm':''}" style="--accent-glow:${glowColor};${style}"><div class="card-body">${content}</div></div>`;
 }
 
+// ── Editable program (falls back to const if user hasn't customised) ──
+function getProgram() {
+  if (!S.gym.program) S.gym.program = GYM_PROGRAM.map(p => ({ ...p }));
+  return S.gym.program;
+}
+
+// ── Long-press detection (touch + mouse) ─────────────────────
+function addLongPress(el, cb, delay = 480) {
+  let timer = null, moved = false;
+  const start = () => { moved = false; timer = setTimeout(() => { if (!moved) { cb(); if (navigator.vibrate) navigator.vibrate(22); } }, delay); };
+  const cancel = () => clearTimeout(timer);
+  const move = () => { moved = true; cancel(); };
+  el.addEventListener('touchstart', start, { passive: true });
+  el.addEventListener('touchend', cancel);
+  el.addEventListener('touchmove', move, { passive: true });
+  el.addEventListener('mousedown', start);
+  el.addEventListener('mouseup', cancel);
+  el.addEventListener('mouseleave', cancel);
+  el.addEventListener('contextmenu', e => { e.preventDefault(); cb(); });
+}
+
+function setupInteractions(tabId) {
+  const root = document.getElementById('screen-' + tabId);
+  if (!root) return;
+  root.querySelectorAll('[data-lp]').forEach(node => {
+    addLongPress(node, () => { try { (0, eval)(node.dataset.lp); } catch (e) {} });
+  });
+  root.querySelectorAll('[data-edit]').forEach(node => {
+    node.addEventListener('click', e => { e.stopPropagation(); try { (0, eval)(node.dataset.edit); } catch (e) {} });
+  });
+}
+
+// ── Generic inline text editor ────────────────────────────────
+function inlineEdit(elId, currentVal, onSave) {
+  const el = document.getElementById(elId);
+  if (!el || el.querySelector('input')) return;
+  const input = document.createElement('input');
+  input.value = currentVal;
+  input.className = 'inline-input';
+  el.innerHTML = '';
+  el.appendChild(input);
+  input.focus(); input.select();
+  let saved = false;
+  const commit = () => {
+    if (saved) return; saved = true;
+    onSave(input.value.trim() || currentVal);
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); if (e.key === 'Escape') { saved = true; onSave(currentVal); } });
+}
+
 // ═══════════════════════════════════════════════════════════════
 // GYM HELPERS
 // ═══════════════════════════════════════════════════════════════
@@ -816,7 +899,7 @@ function ensureTodayWorkout() {
   const key = todayWorkoutKey();
   if (!S.gym.workouts[key]) {
     const dow = new Date().getDay();
-    const prog = GYM_PROGRAM[dow];
+    const prog = getProgram()[dow];
     const exs = EXERCISE_LIBRARY[prog.type] || [];
     S.gym.workouts[key] = {
       type: prog.type,
@@ -833,7 +916,7 @@ function recalcGymStreak() {
     const key = d.toISOString().slice(0,10);
     const w = S.gym.workouts[key];
     const dow = d.getDay();
-    if (GYM_PROGRAM[dow].type === 'repos') {
+    if (getProgram()[dow].type === 'repos') {
       d.setDate(d.getDate()-1); streak++;
       if (streak > 365) break;
       continue;
@@ -973,14 +1056,14 @@ function renderToday() {
     const w = S.gym.workouts[key];
     const done = w && w.exercises.some(e=>e.done);
     const ddow = d.getDay();
-    const prog = GYM_PROGRAM[ddow];
+    const prog = getProgram()[ddow];
     return { d, key, isToday, done, prog, dateNum: d.getDate() };
   });
 
   // today's workout
   const todayWorkout = ensureTodayWorkout();
   const doneEx = todayWorkout.exercises.filter(e=>e.done).length;
-  const todayProg = GYM_PROGRAM[dow];
+  const todayProg = getProgram()[dow];
 
   // finance summary
   const net = netBalance();
@@ -1120,7 +1203,7 @@ function renderGym() {
     const d = new Date(startOfWeek); d.setDate(startOfWeek.getDate()+i);
     const key = d.toISOString().slice(0,10);
     const ddow = d.getDay();
-    const prog = GYM_PROGRAM[ddow];
+    const prog = getProgram()[ddow];
     const isToday = key===today();
     const w = S.gym.workouts[key];
     const done = w&&w.exercises.some(e=>e.done);
@@ -1129,7 +1212,7 @@ function renderGym() {
 
   const weekHTML = weekCells.map(wc=>{
     const col = COLORS[wc.prog.color] || 'rgba(255,255,255,0.3)';
-    return `<div style="padding:9px 3px 9px;border-radius:14px;background:${wc.isToday?'var(--card-hi)':'var(--card)'};border:1px solid ${wc.isToday?col:'var(--border)'};text-align:center;box-shadow:${wc.isToday?`0 0 14px ${col}40`:'none'};position:relative">
+    return `<div data-lp="openEditGymDay(${wc.d.getDay()})" style="padding:9px 3px 9px;border-radius:14px;background:${wc.isToday?'var(--card-hi)':'var(--card)'};border:1px solid ${wc.isToday?col:'var(--border)'};text-align:center;box-shadow:${wc.isToday?`0 0 14px ${col}40`:'none'};position:relative">
       <div class="mono mute" style="font-size:8px">${wc.dayLabel}</div>
       <div style="font-size:11px;font-weight:600;color:${col};margin-top:5px">${wc.prog.name}</div>
       ${wc.done?`<div style="position:absolute;top:5px;right:5px;width:5px;height:5px;border-radius:5px;background:${col};box-shadow:0 0 5px ${col}"></div>`:''}
@@ -1140,7 +1223,7 @@ function renderGym() {
   const pct = Math.min(S.gym.streak / 52, 1);
   const circ = 213;
   const dash = pct * circ;
-  const todayType = GYM_PROGRAM[dow];
+  const todayType = getProgram()[dow];
 
   // exercises
   const exHTML = todayWork.exercises.map((ex, i)=>{
@@ -1153,7 +1236,7 @@ function renderGym() {
             <div class="ex-check${ex.done?' done':''}" onclick="toggleExercise('${today()}',${i})" title="Marquer fait">
               ${ex.done?'✓':''}
             </div>
-            <div class="ex-name${ex.done?' done':''}">${ex.name}</div>
+            <div class="ex-name${ex.done?' done':''}" data-lp="openEditExercise('${today()}',${i})" title="Maintenir pour modifier">${ex.name}</div>
             <div class="ex-sets-count">${ex.sets.length} set${ex.sets.length!==1?'s':''}</div>
           </div>
           <div class="ex-sets">
@@ -1205,7 +1288,8 @@ function renderGym() {
     ${todayType.name} · Aujourd'hui
     <span class="mono" style="float:right;color:var(--green)">${todayWork.exercises.filter(e=>e.done).length}/${todayWork.exercises.length}</span>
   </div>
-  ${todayWork.exercises.length > 0 ? exHTML : `<div class="px" style="padding-bottom:20px"><div class="card"><div class="card-body" style="text-align:center;color:var(--mute);padding:24px">Repos aujourd'hui — récupère bien !</div></div></div>`}`;
+  ${todayWork.exercises.length > 0 ? exHTML : `<div class="px" style="padding-bottom:8px"><div class="card"><div class="card-body" style="text-align:center;color:var(--mute);padding:24px">Repos aujourd'hui — récupère bien !</div></div></div>`}
+  <button class="add-ex-btn animate-in stagger-8" onclick="openAddExercise('${today()}')">+ Ajouter un exercice</button>`;
 }
 
 function toggleExercise(dateKey, idx) {
@@ -1253,6 +1337,106 @@ function saveSet(dateKey, exIdx) {
   if (!reps) return;
   const w = S.gym.workouts[dateKey];
   w.exercises[exIdx].sets.push({ r: parseInt(reps)||0, w: weight||'PC' });
+  save('gym', S.gym);
+  closeSheet();
+  renderTab('gym');
+}
+
+function openEditExercise(dateKey, idx) {
+  const ex = S.gym.workouts[dateKey]?.exercises?.[idx];
+  if (!ex) return;
+  openSheet(`
+    <div class="sheet-title" style="font-size:18px">${ex.name}</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:6px">
+      <button class="sheet-btn" style="background:rgba(255,255,255,.06);border:1px solid var(--border-hi);color:var(--text);text-align:left" onclick="openRenameExercise('${dateKey}',${idx})">✏️ &nbsp;Renommer</button>
+      <button class="sheet-btn sheet-btn-danger" onclick="removeExercise('${dateKey}',${idx})">🗑 &nbsp;Supprimer l'exercice</button>
+    </div>
+  `);
+}
+
+function openRenameExercise(dateKey, idx) {
+  const ex = S.gym.workouts[dateKey]?.exercises?.[idx];
+  if (!ex) return;
+  openSheet(`
+    <div class="sheet-title">Renommer l'exercice</div>
+    <div class="sheet-field">
+      <label>Nom</label>
+      <input id="ex-name-inp" class="sheet-input" value="${ex.name}">
+    </div>
+    <button class="sheet-btn sheet-btn-primary" onclick="saveExerciseName('${dateKey}',${idx})">Sauvegarder</button>
+  `);
+  setTimeout(() => document.getElementById('ex-name-inp')?.focus(), 120);
+}
+
+function saveExerciseName(dateKey, idx) {
+  const val = document.getElementById('ex-name-inp')?.value?.trim();
+  if (!val) return;
+  S.gym.workouts[dateKey].exercises[idx].name = val;
+  save('gym', S.gym);
+  closeSheet();
+  renderTab('gym');
+}
+
+function removeExercise(dateKey, idx) {
+  S.gym.workouts[dateKey].exercises.splice(idx, 1);
+  save('gym', S.gym);
+  closeSheet();
+  renderTab('gym');
+}
+
+function openAddExercise(dateKey) {
+  const dow = new Date(dateKey + 'T12:00:00').getDay();
+  const prog = getProgram()[dow];
+  const suggestions = (EXERCISE_LIBRARY[prog.type] || []);
+  openSheet(`
+    <div class="sheet-title">Ajouter un exercice</div>
+    <div class="sheet-field">
+      <label>Nom</label>
+      <input id="new-ex-name" class="sheet-input" placeholder="ex: Curl barre" list="ex-datalist">
+      <datalist id="ex-datalist">${suggestions.map(e => `<option value="${e}">`).join('')}</datalist>
+    </div>
+    <button class="sheet-btn sheet-btn-primary" onclick="saveNewExercise('${dateKey}')">Ajouter</button>
+  `);
+  setTimeout(() => document.getElementById('new-ex-name')?.focus(), 120);
+}
+
+function saveNewExercise(dateKey) {
+  const name = document.getElementById('new-ex-name')?.value?.trim();
+  if (!name) return;
+  S.gym.workouts[dateKey].exercises.push({ name, sets: [], done: false });
+  save('gym', S.gym);
+  closeSheet();
+  renderTab('gym');
+}
+
+function openEditGymDay(dow) {
+  const prog = getProgram()[dow];
+  openSheet(`
+    <div class="sheet-title">Jour ${GYM_DAYS[dow]}</div>
+    <div class="sheet-field">
+      <label>Nom de la session</label>
+      <input id="day-name-inp" class="sheet-input" value="${prog.name}" placeholder="ex: Push, Pull, Jambes…">
+    </div>
+    <div class="sheet-field">
+      <label>Type d'exercices</label>
+      <select id="day-type-inp" class="sheet-select">
+        ${['push','pull','legs','pump','repos'].map(t =>
+          `<option value="${t}"${t === prog.type ? ' selected' : ''}>${t.charAt(0).toUpperCase() + t.slice(1)}</option>`
+        ).join('')}
+      </select>
+    </div>
+    <button class="sheet-btn sheet-btn-primary" onclick="saveGymDay(${dow})">Sauvegarder</button>
+  `);
+  setTimeout(() => document.getElementById('day-name-inp')?.focus(), 120);
+}
+
+function saveGymDay(dow) {
+  const name = document.getElementById('day-name-inp')?.value?.trim();
+  const type = document.getElementById('day-type-inp')?.value;
+  if (!name) return;
+  const prog = getProgram();
+  prog[dow] = { ...prog[dow], name, type: type || prog[dow].type };
+  S.gym.program = prog;
   save('gym', S.gym);
   closeSheet();
   renderTab('gym');
@@ -1497,9 +1681,10 @@ function renderInvest() {
             </div>
             ${pr?`<div class="mono" style="font-size:9px;margin-top:4px;color:${dayChg>=0?'var(--green)':'var(--red)'}">${dayChg>=0?'+':''}€${fmtNum(dayChg,2)} aujourd'hui (${dayChgPct>=0?'+':''}${fmtNum(dayChgPct,2)}%)</div>`:''}
           </div>
+          <button class="pos-del" onclick="deletePosition('${p.symbol}')" title="Supprimer">×</button>
         </div>
         <div class="pos-spark" style="padding:0 14px 12px">
-          ${svgSpark(sparkVals, col, 310, 26)}
+          ${svgSpark(sparkVals, col, 290, 26)}
         </div>
       </div>
     </div>`;
@@ -1534,7 +1719,10 @@ function renderInvest() {
 
   <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 22px 8px" class="animate-in stagger-3">
     <div class="mono dim">Positions</div>
-    <div class="mono mute">${positions.length} actifs · ${isLoading?'<span class="loading-spin"></span>':'live'}</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="mono mute">${positions.length} actifs · ${isLoading?'<span class="loading-spin"></span>':'live'}</div>
+      <button onclick="openAddPosition()" style="padding:4px 12px;border-radius:10px;background:rgba(90,245,200,.1);border:1px solid rgba(90,245,200,.3);color:var(--cyan);font-family:var(--mono);font-size:10px;letter-spacing:.04em">+ Ajouter</button>
+    </div>
   </div>
 
   <div class="px animate-in stagger-3" style="padding-bottom:20px">${posRows}</div>`;
@@ -1563,10 +1751,10 @@ function renderHabits() {
     const done = todayDone.includes(h.id);
     const streak = habitStreak(h.id);
     const col = COLORS[h.color];
-    return `<div class="card card-sm animate-in stagger-${Math.min(i+4,8)}" style="margin-bottom:8px;--accent-glow:${done?ACCENT_GLOW[h.color]:'rgba(255,255,255,0.04)'}">
+    return `<div class="card card-sm animate-in stagger-${Math.min(i+4,8)}" style="margin-bottom:8px;--accent-glow:${done?ACCENT_GLOW[h.color]:'rgba(255,255,255,0.04)'}" data-lp="openEditHabit('${h.id}')" title="Maintenir pour modifier">
       <div class="card-body">
         <div class="habit-row" style="padding:0">
-          <div class="habit-check${done?' done':''}" style="${done?`background:${col};border-color:${col};color:#0a0a0a;box-shadow:0 0 12px ${col}55`:''}" onclick="toggleHabit('${h.id}')">
+          <div class="habit-check${done?' done':''}" style="${done?`background:${col};border-color:${col};color:#0a0a0a;box-shadow:0 0 12px ${col}55`:''}" onclick="event.stopPropagation();toggleHabit('${h.id}')">
             ${done?'✓':''}
           </div>
           <div class="habit-name${done?' done':''}">${h.name}</div>
@@ -1612,10 +1800,13 @@ function renderHabits() {
     `, 'purple')}
   </div>
 
-  <div class="mono dim px-l animate-in stagger-3" style="margin-top:12px;margin-bottom:8px">Checklist</div>
+  <div class="mono dim px-l animate-in stagger-3" style="margin-top:12px;margin-bottom:8px">Checklist <span class="mono mute" style="font-size:8px;text-transform:none;letter-spacing:0">— maintenir pour modifier</span></div>
   <div class="px animate-in stagger-3">${habitRows}</div>
+  <div class="px animate-in stagger-4" style="padding-bottom:6px">
+    <button class="add-deal-btn" onclick="openAddHabit()" style="display:block;width:100%;margin:0">+ Nouvelle habitude</button>
+  </div>
 
-  <div class="mono dim px-l animate-in stagger-5" style="margin-top:14px;margin-bottom:8px">30 derniers jours</div>
+  <div class="mono dim px-l animate-in stagger-5" style="margin-top:10px;margin-bottom:8px">30 derniers jours</div>
   <div class="px animate-in stagger-5" style="padding-bottom:20px">
     ${card(`
       <div class="heat-grid">${heatCells}</div>
@@ -1628,6 +1819,99 @@ function renderHabits() {
       </div>
     `)}
   </div>`;
+}
+
+let _pendingHabitColor = 'green';
+
+function openEditHabit(id) {
+  const h = S.habits.list.find(x => x.id === id);
+  if (!h) return;
+  openSheet(`
+    <div class="sheet-title" style="font-size:18px">${h.name}</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:6px">
+      <button class="sheet-btn" style="background:rgba(255,255,255,.06);border:1px solid var(--border-hi);color:var(--text);text-align:left" onclick="openRenameHabit('${id}')">✏️ &nbsp;Renommer</button>
+      <button class="sheet-btn sheet-btn-danger" onclick="deleteHabit('${id}')">🗑 &nbsp;Supprimer l'habitude</button>
+    </div>
+  `);
+}
+
+function openRenameHabit(id) {
+  const h = S.habits.list.find(x => x.id === id);
+  if (!h) return;
+  _pendingHabitColor = h.color;
+  const colors = ['green','cyan','gold','purple','red'];
+  openSheet(`
+    <div class="sheet-title">Modifier l'habitude</div>
+    <div class="sheet-field">
+      <label>Nom</label>
+      <input id="habit-name-inp" class="sheet-input" value="${h.name}">
+    </div>
+    <div class="sheet-field">
+      <label>Couleur</label>
+      <div style="display:flex;gap:10px;margin-top:6px">
+        ${colors.map(c => `<button class="color-swatch${c === h.color ? ' selected' : ''}" style="background:${COLORS[c]}" onclick="pickHabitColor('${c}',this)"></button>`).join('')}
+      </div>
+    </div>
+    <button class="sheet-btn sheet-btn-primary" onclick="saveHabitEdit('${id}')">Sauvegarder</button>
+  `);
+  setTimeout(() => document.getElementById('habit-name-inp')?.focus(), 120);
+}
+
+function pickHabitColor(color, btn) {
+  _pendingHabitColor = color;
+  document.querySelectorAll('.color-swatch').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+}
+
+function saveHabitEdit(id) {
+  const name = document.getElementById('habit-name-inp')?.value?.trim();
+  if (!name) return;
+  const h = S.habits.list.find(x => x.id === id);
+  if (!h) return;
+  h.name = name;
+  h.color = _pendingHabitColor || h.color;
+  save('habits', S.habits);
+  closeSheet();
+  renderTab('habits');
+}
+
+function deleteHabit(id) {
+  S.habits.list = S.habits.list.filter(h => h.id !== id);
+  Object.keys(S.habits.completions).forEach(k => {
+    S.habits.completions[k] = (S.habits.completions[k] || []).filter(x => x !== id);
+  });
+  save('habits', S.habits);
+  closeSheet();
+  renderTab('habits');
+}
+
+function openAddHabit() {
+  _pendingHabitColor = 'green';
+  const colors = ['green','cyan','gold','purple','red'];
+  openSheet(`
+    <div class="sheet-title">Nouvelle habitude</div>
+    <div class="sheet-field">
+      <label>Nom</label>
+      <input id="new-habit-name" class="sheet-input" placeholder="ex: Méditation · 20 min">
+    </div>
+    <div class="sheet-field">
+      <label>Couleur</label>
+      <div style="display:flex;gap:10px;margin-top:6px">
+        ${colors.map((c, i) => `<button class="color-swatch${i === 0 ? ' selected' : ''}" style="background:${COLORS[c]}" onclick="pickHabitColor('${c}',this)"></button>`).join('')}
+      </div>
+    </div>
+    <button class="sheet-btn sheet-btn-primary" onclick="saveNewHabit()">Ajouter</button>
+  `);
+  setTimeout(() => document.getElementById('new-habit-name')?.focus(), 120);
+}
+
+function saveNewHabit() {
+  const name = document.getElementById('new-habit-name')?.value?.trim();
+  if (!name) return;
+  S.habits.list.push({ id: 'h_' + Date.now(), name, color: _pendingHabitColor || 'green' });
+  save('habits', S.habits);
+  closeSheet();
+  renderTab('habits');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1653,15 +1937,15 @@ function renderHub() {
       const glowColor = d.hot ? (ACCENT_GLOW[col.color]||'rgba(255,255,255,0.04)') : 'rgba(255,255,255,0.04)';
       return `<div class="card card-sm" style="--accent-glow:${glowColor};margin-bottom:8px">
         <div class="card-body deal-card">
-          <div class="deal-name">${d.company}</div>
+          <div class="deal-name" id="dn-${d.id}" data-edit="inlineEditDeal(${d.id},'company','dn-${d.id}')" title="Taper pour modifier">${d.company}</div>
           <div class="deal-footer">
-            <span class="deal-rev" style="color:${colColor}">${d.revenue}</span>
+            <span class="deal-rev" id="dr-${d.id}" data-edit="inlineEditDeal(${d.id},'revenue','dr-${d.id}')" style="color:${colColor};cursor:pointer" title="Taper pour modifier">${d.revenue}</span>
             <div class="deal-actions">
               ${nextCol?`<button class="deal-move" onclick="moveDeal(${d.id},'${nextCol.id}')" title="Avancer">→</button>`:''}
               <button class="deal-del" onclick="deleteDeal(${d.id})" title="Supprimer">×</button>
             </div>
           </div>
-          ${d.tag?`<div class="mono mute" style="font-size:9px;margin-top:5px">${d.tag}</div>`:''}
+          ${d.tag?`<div class="mono mute" style="font-size:9px;margin-top:5px" id="dt-${d.id}" data-edit="inlineEditDeal(${d.id},'tag','dt-${d.id}')">${d.tag}</div>`:''}
         </div>
       </div>`;
     }).join('');
@@ -1756,6 +2040,86 @@ function saveDeal() {
   renderTab('hub');
 }
 
+function inlineEditDeal(id, field, elId) {
+  const deal = S.hub.deals.find(d => d.id === id);
+  if (!deal) return;
+  const el = document.getElementById(elId);
+  if (!el || el.querySelector('input')) return;
+  const cur = deal[field] || '';
+  const input = document.createElement('input');
+  input.value = cur;
+  input.className = 'inline-input';
+  input.style.fontSize = field === 'revenue' ? '15px' : field === 'tag' ? '9px' : '12px';
+  input.style.fontFamily = field === 'tag' ? 'var(--mono)' : 'var(--sans)';
+  el.innerHTML = '';
+  el.appendChild(input);
+  input.focus(); input.select();
+  let saved = false;
+  const commit = () => {
+    if (saved) return; saved = true;
+    const v = input.value.trim();
+    deal[field] = v || cur;
+    save('hub', S.hub);
+    renderTab('hub');
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') input.blur();
+    if (e.key === 'Escape') { saved = true; renderTab('hub'); }
+  });
+}
+
+function openAddPosition() {
+  openSheet(`
+    <div class="sheet-title">Nouvelle position</div>
+    <div class="sheet-field">
+      <label>Symbole</label>
+      <input id="pos-sym" class="sheet-input" placeholder="ex: AAPL, MSFT, SP5.PA…" autocapitalize="characters">
+    </div>
+    <div class="sheet-field">
+      <label>Nom complet</label>
+      <input id="pos-name" class="sheet-input" placeholder="ex: Apple Inc.">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="sheet-field">
+        <label>Quantité</label>
+        <input id="pos-qty" class="sheet-input" type="number" min="1" placeholder="10" inputmode="numeric">
+      </div>
+      <div class="sheet-field">
+        <label>Prix moyen (€)</label>
+        <input id="pos-cost" class="sheet-input" type="number" step="0.01" placeholder="150.00" inputmode="decimal">
+      </div>
+    </div>
+    <button class="sheet-btn sheet-btn-primary" onclick="saveNewPosition()">Ajouter au portfolio</button>
+  `);
+  setTimeout(() => document.getElementById('pos-sym')?.focus(), 120);
+}
+
+function saveNewPosition() {
+  const symbol  = document.getElementById('pos-sym')?.value?.trim()?.toUpperCase();
+  const name    = document.getElementById('pos-name')?.value?.trim();
+  const qty     = parseInt(document.getElementById('pos-qty')?.value || '0');
+  const avgCost = parseFloat(document.getElementById('pos-cost')?.value || '0');
+  if (!symbol || qty <= 0 || avgCost <= 0) return;
+  if (S.stocks.positions.find(p => p.symbol === symbol)) {
+    document.getElementById('pos-sym').style.borderColor = 'var(--red)';
+    return;
+  }
+  S.stocks.positions.push({ symbol, name: name || symbol, qty, avgCost });
+  save('stocks', S.stocks);
+  closeSheet();
+  renderTab('invest');
+  fetchAllPrices();
+}
+
+function deletePosition(symbol) {
+  S.stocks.positions = S.stocks.positions.filter(p => p.symbol !== symbol);
+  delete S.stocks.prices[symbol];
+  save('stocks', S.stocks);
+  renderTab('invest');
+  if (S.tab === 'today') renderTab('today');
+}
+
 // ═══════════════════════════════════════════════════════════════
 // NAVIGATION & ROUTER
 // ═══════════════════════════════════════════════════════════════
@@ -1772,6 +2136,7 @@ function renderTab(tabId) {
   const el = document.getElementById('screen-' + tabId);
   if (!el) return;
   el.innerHTML = RENDERERS[tabId]();
+  setupInteractions(tabId);
 }
 
 function switchTab(tabId) {
