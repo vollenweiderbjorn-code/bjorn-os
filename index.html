@@ -634,6 +634,18 @@ button { cursor: pointer; border: none; background: none; color: inherit; }
 </head>
 <body>
 <div id="app">
+  <!-- Notification opt-in banner -->
+  <div id="notif-banner" style="display:none;padding:10px 16px 0;position:relative;z-index:45;flex-shrink:0">
+    <div style="background:#161616;border:1px solid rgba(200,245,90,.22);border-radius:16px;padding:12px 14px;display:flex;align-items:center;gap:10px;animation:cardIn .3s ease both">
+      <span style="font-size:20px;flex-shrink:0">🔔</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500;color:var(--text)">Rappels quotidiens</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--mute);margin-top:2px;letter-spacing:.04em">GYM 7H · HABITS 21H</div>
+      </div>
+      <button onclick="requestNotifPermission()" style="padding:7px 14px;border-radius:10px;background:var(--green);color:#0a0a0a;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.05em;flex-shrink:0;border:none;cursor:pointer">Activer</button>
+      <button onclick="dismissNotifBanner()" style="width:26px;height:26px;border-radius:8px;background:rgba(255,255,255,.06);color:var(--mute);font-size:15px;line-height:1;flex-shrink:0;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center">×</button>
+    </div>
+  </div>
   <div id="tab-content"></div>
   <nav id="bottom-nav">
     <div class="nav-inner" id="nav-inner"></div>
@@ -2185,6 +2197,95 @@ function deletePosition(symbol) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════════
+let _notifInterval = null;
+
+function initNotifBanner() {
+  if (!('Notification' in window)) return;
+  const stored = load('notif', null);
+  // Already decided — just re-start scheduler if granted
+  if (stored === 'granted' && Notification.permission === 'granted') {
+    scheduleNotifications();
+    return;
+  }
+  // Sync stored state with actual browser permission
+  if (Notification.permission === 'granted' && stored !== 'granted') {
+    save('notif', 'granted'); scheduleNotifications(); return;
+  }
+  if (Notification.permission === 'denied' && stored !== 'denied') {
+    save('notif', 'denied'); return;
+  }
+  // Show banner only if not yet decided
+  if (stored === null) {
+    document.getElementById('notif-banner').style.display = 'flex';
+  }
+}
+
+async function requestNotifPermission() {
+  if (!('Notification' in window)) return;
+  const perm = await Notification.requestPermission();
+  document.getElementById('notif-banner').style.display = 'none';
+  if (perm === 'granted') {
+    save('notif', 'granted');
+    scheduleNotifications();
+    _registerPeriodicSync();
+  } else {
+    save('notif', 'denied');
+  }
+}
+
+function dismissNotifBanner() {
+  save('notif', 'dismissed');
+  document.getElementById('notif-banner').style.display = 'none';
+}
+
+function _sendNotif(title, body, tag) {
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({ type: 'SHOW_NOTIFICATION', title, body, tag });
+  } else {
+    try { new Notification(title, { body, icon: '/icon.svg', tag }); } catch (_) {}
+  }
+}
+
+function scheduleNotifications() {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  if (_notifInterval) return; // already running
+  const fired = {};
+
+  function tick() {
+    const now = new Date();
+    const h = now.getHours(), m = now.getMinutes();
+    const dk = now.toISOString().slice(0, 10);
+
+    if (h === 7 && m === 0 && !fired['gym-' + dk]) {
+      fired['gym-' + dk] = true;
+      const prog = getProgram();
+      const session = prog[now.getDay()]?.name || 'Session du jour';
+      _sendNotif('Bonjour Bjorn 💪', `Ta session du jour : ${session}`, 'gym-' + dk);
+    }
+
+    if (h === 21 && m === 0 && !fired['habits-' + dk]) {
+      fired['habits-' + dk] = true;
+      _sendNotif('Habits check 📋', "Tu en es où aujourd'hui ?", 'habits-' + dk);
+    }
+  }
+
+  tick();
+  _notifInterval = setInterval(tick, 60000);
+}
+
+async function _registerPeriodicSync() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    if (!('periodicSync' in reg)) return;
+    await reg.periodicSync.register('daily-gym',    { minInterval: 24 * 60 * 60 * 1000 });
+    await reg.periodicSync.register('daily-habits', { minInterval: 24 * 60 * 60 * 1000 });
+  } catch (_) { /* Not supported or permission denied */ }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // NAVIGATION & ROUTER
 // ═══════════════════════════════════════════════════════════════
 const RENDERERS = {
@@ -2261,9 +2362,13 @@ function init() {
   // clock tick for today tab
   setInterval(()=>{ if (S.tab==='today') renderTab('today'); }, 60000);
 
-  // Register service worker
+  // Register service worker then init notifications
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(()=>{});
+    navigator.serviceWorker.register('/sw.js')
+      .then(() => initNotifBanner())
+      .catch(() => initNotifBanner());
+  } else {
+    initNotifBanner();
   }
 }
 
