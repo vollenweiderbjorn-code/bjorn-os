@@ -775,9 +775,10 @@ const S = {
   }),
   stocks: load('stocks', {
     positions: DEFAULT_POSITIONS,
-    prices: {},         // { symbol: { c, d, dp, lastFetch } }
     nextId: DEFAULT_POSITIONS.length + 1,
   }),
+  // Prices are stored separately so a price-fetch save can never touch positions
+  prices: load('prices', {}), // { symbol: { c, d, dp, lastFetch } }
   habits: load('habits', {
     list: DEFAULT_HABITS,
     completions: {},    // { 'YYYY-MM-DD': [habitId,...] }
@@ -794,6 +795,7 @@ function saveAll() {
   save('gym', S.gym);
   save('finance', S.finance);
   save('stocks', S.stocks);
+  save('prices', S.prices);
   save('habits', S.habits);
   save('hub', S.hub);
   save('cats', S.categories);
@@ -1004,16 +1006,17 @@ async function fetchQuote(symbol) {
 }
 
 async function fetchAllPrices() {
-  const symbols = S.stocks.positions.map(p=>p.symbol);
-  const results = await Promise.allSettled(symbols.map(s=>fetchQuote(s)));
+  const symbols = S.stocks.positions.map(p => p.symbol);
+  const results = await Promise.allSettled(symbols.map(s => fetchQuote(s)));
   let changed = false;
   results.forEach((r, i) => {
     if (r.status === 'fulfilled' && r.value) {
-      S.stocks.prices[symbols[i]] = { ...r.value, lastFetch: Date.now() };
+      S.prices[symbols[i]] = { ...r.value, lastFetch: Date.now() };
       changed = true;
     }
   });
-  if (changed) { save('stocks', S.stocks); renderTab('invest'); }
+  // Only save prices — never overwrites positions
+  if (changed) { save('prices', S.prices); renderTab('invest'); }
 }
 
 function startStockPolling() {
@@ -1101,7 +1104,7 @@ function renderToday() {
 
   // portfolio
   const totalVal = S.stocks.positions.reduce((s,p)=>{
-    const pr = S.stocks.prices[p.symbol];
+    const pr = S.prices[p.symbol];
     return s + p.qty * (pr ? pr.c : p.avgCost);
   }, 0);
   const totalCost = S.stocks.positions.reduce((s,p)=>s+p.qty*p.avgCost, 0);
@@ -1195,7 +1198,7 @@ function renderToday() {
             ${portfolioPL>=0?'+':'−'}€${fmtNum(Math.abs(portfolioPL))} aujourd'hui
           </div>
         </div>
-        ${svgSpark(S.stocks.positions.map(p=>{const pr=S.stocks.prices[p.symbol];return p.qty*(pr?pr.c:p.avgCost);}), 'var(--cyan)', 110, 50)}
+        ${svgSpark(S.stocks.positions.map(p=>{const pr=S.prices[p.symbol];return p.qty*(pr?pr.c:p.avgCost);}), 'var(--cyan)', 110, 50)}
       </div>
     `, 'cyan')}
   </div>
@@ -1657,7 +1660,7 @@ function saveTx() {
 // ═══════════════════════════════════════════════════════════════
 function renderInvest() {
   const positions = S.stocks.positions;
-  const priceMap = S.stocks.prices;
+  const priceMap = S.prices;
 
   const totalVal = positions.reduce((s,p)=>{
     const pr = priceMap[p.symbol];
@@ -2178,8 +2181,9 @@ function saveEditPosition(oldSymbol) {
   const cost = parseFloat(document.getElementById('epos-cost')?.value || '0');
   if (!sym || qty <= 0 || cost <= 0) return;
   if (sym !== oldSymbol) {
-    S.stocks.prices[sym] = S.stocks.prices[oldSymbol];
-    delete S.stocks.prices[oldSymbol];
+    S.prices[sym] = S.prices[oldSymbol];
+    delete S.prices[oldSymbol];
+    save('prices', S.prices);
   }
   S.stocks.positions[idx] = { symbol: sym, name: name || sym, qty, avgCost: cost };
   save('stocks', S.stocks);
@@ -2190,8 +2194,9 @@ function saveEditPosition(oldSymbol) {
 
 function deletePosition(symbol) {
   S.stocks.positions = S.stocks.positions.filter(p => p.symbol !== symbol);
-  delete S.stocks.prices[symbol];
+  delete S.prices[symbol];
   save('stocks', S.stocks);
+  save('prices', S.prices);
   renderTab('invest');
   if (S.tab === 'today') renderTab('today');
 }
