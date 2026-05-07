@@ -1505,14 +1505,14 @@ function renderFinance() {
     const spent = catSpend(c.id);
     const pct = c.budget > 0 ? (spent/c.budget)*100 : 0;
     const col = COLORS[c.color];
-    return `<div class="card card-sm" style="margin-bottom:8px">
+    return `<div class="card card-sm" style="margin-bottom:8px" data-lp="openEditCategory('${c.id}')" title="Maintenir pour modifier">
       <div class="card-body">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div style="display:flex;align-items:center;gap:9px">
             <div style="width:8px;height:8px;border-radius:8px;background:${col};box-shadow:0 0 5px ${col}"></div>
             <span style="font-size:13px;font-weight:500">${c.name}</span>
           </div>
-          <div class="mono" style="font-size:10px;color:var(--text)">€${fmtNum(spent,0)} <span style="color:var(--mute)">/ ${c.budget}</span></div>
+          <div class="mono" style="font-size:10px;color:var(--text)">€${fmtNum(spent,0)} <span style="color:var(--mute)">/ €${c.budget}</span></div>
         </div>
         <div style="margin-top:9px">${progressBar(pct,c.color,4)}</div>
       </div>
@@ -1589,7 +1589,10 @@ function renderFinance() {
     `)}
   </div>
 
-  <div class="mono dim px-l animate-in stagger-4" style="margin-top:12px;margin-bottom:8px">Catégories</div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;margin-bottom:8px" class="px-l animate-in stagger-4">
+    <div class="mono dim">Catégories <span class="mono mute" style="font-size:8px;text-transform:none;letter-spacing:0">— maintenir pour modifier</span></div>
+    <button onclick="openAddCategory()" style="padding:4px 12px;border-radius:10px;background:rgba(245,200,66,.1);border:1px solid rgba(245,200,66,.3);color:var(--gold);font-family:var(--mono);font-size:10px;letter-spacing:.04em;cursor:pointer">+ Ajouter</button>
+  </div>
   <div class="px animate-in stagger-4">${catRows}</div>
 
   <div style="display:flex;justify-content:space-between;align-items:center" class="px-l animate-in stagger-5" style="margin-top:10px">
@@ -1609,6 +1612,97 @@ function renderFinance() {
 function saveBudgetLimit(val) {
   const num = parseFloat(val.replace(/[€\s]/g,'').replace(',','.'));
   if (!isNaN(num) && num > 0) { S.finance.limit = num; save('finance', S.finance); renderTab('finance'); }
+}
+
+// ─── Category edit ────────────────────────────────────────────
+let _pendingCatColor = 'green';
+
+function pickCatColor(color, btn) {
+  _pendingCatColor = color;
+  document.querySelectorAll('.color-swatch').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+}
+
+function _catColorSwatches(selected) {
+  return ['green','cyan','gold','purple','red'].map((c,i) =>
+    `<button class="color-swatch${c === selected ? ' selected' : ''}" style="background:${COLORS[c]}" onclick="pickCatColor('${c}',this)"></button>`
+  ).join('');
+}
+
+function openEditCategory(id) {
+  const c = S.categories.find(x => x.id === id);
+  if (!c) return;
+  _pendingCatColor = c.color;
+  openSheet(`
+    <div class="sheet-title" style="font-size:18px">${c.name}</div>
+    <div class="sheet-field">
+      <label>Nom</label>
+      <input id="cat-name-inp" class="sheet-input" value="${c.name}">
+    </div>
+    <div class="sheet-field">
+      <label>Budget mensuel (€)</label>
+      <input id="cat-budget-inp" class="sheet-input" type="number" min="0" step="1" value="${c.budget}" inputmode="numeric">
+    </div>
+    <div class="sheet-field">
+      <label>Couleur</label>
+      <div style="display:flex;gap:10px;margin-top:6px">${_catColorSwatches(c.color)}</div>
+    </div>
+    <button class="sheet-btn sheet-btn-primary" onclick="saveEditCategory('${id}')">Sauvegarder</button>
+    <button class="sheet-btn sheet-btn-danger" onclick="deleteCategory('${id}')">🗑 &nbsp;Supprimer la catégorie</button>
+  `);
+  setTimeout(() => document.getElementById('cat-name-inp')?.focus(), 120);
+}
+
+function saveEditCategory(id) {
+  const name   = document.getElementById('cat-name-inp')?.value?.trim();
+  const budget = parseFloat(document.getElementById('cat-budget-inp')?.value || '0');
+  if (!name) return;
+  const c = S.categories.find(x => x.id === id);
+  if (!c) return;
+  c.name   = name;
+  c.budget = budget;
+  c.color  = _pendingCatColor || c.color;
+  save('cats', S.categories);
+  closeSheet();
+  renderTab('finance');
+}
+
+function deleteCategory(id) {
+  S.categories = S.categories.filter(c => c.id !== id);
+  save('cats', S.categories);
+  closeSheet();
+  renderTab('finance');
+}
+
+function openAddCategory() {
+  _pendingCatColor = 'green';
+  openSheet(`
+    <div class="sheet-title">Nouvelle catégorie</div>
+    <div class="sheet-field">
+      <label>Nom</label>
+      <input id="new-cat-name" class="sheet-input" placeholder="ex: Vestimentaire">
+    </div>
+    <div class="sheet-field">
+      <label>Budget mensuel (€)</label>
+      <input id="new-cat-budget" class="sheet-input" type="number" min="0" step="1" placeholder="100" inputmode="numeric">
+    </div>
+    <div class="sheet-field">
+      <label>Couleur</label>
+      <div style="display:flex;gap:10px;margin-top:6px">${_catColorSwatches('green')}</div>
+    </div>
+    <button class="sheet-btn sheet-btn-primary" onclick="saveNewCategory()">Ajouter</button>
+  `);
+  setTimeout(() => document.getElementById('new-cat-name')?.focus(), 120);
+}
+
+function saveNewCategory() {
+  const name   = document.getElementById('new-cat-name')?.value?.trim();
+  const budget = parseFloat(document.getElementById('new-cat-budget')?.value || '0');
+  if (!name) return;
+  S.categories.push({ id: 'cat_' + Date.now(), name, budget, color: _pendingCatColor || 'green' });
+  save('cats', S.categories);
+  closeSheet();
+  renderTab('finance');
 }
 
 function deleteTx(id) {
