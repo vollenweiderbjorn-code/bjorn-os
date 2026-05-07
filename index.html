@@ -716,11 +716,9 @@ const DEFAULT_HABITS = [
 ];
 
 const DEFAULT_POSITIONS = [
-  { symbol: 'NVDA',    name: 'Nvidia',            qty: 8,  avgCost: 720.00 },
-  { symbol: 'PLTR',    name: 'Palantir',          qty: 42, avgCost: 21.10  },
-  { symbol: 'GOOGL',   name: 'Alphabet',          qty: 12, avgCost: 162.30 },
-  { symbol: 'VWCE.DE', name: 'Vanguard FTSE All', qty: 38, avgCost: 110.20 },
-  { symbol: 'CSPX',    name: 'iShares S&P 500',   qty: 14, avgCost: 510.00 },
+  { symbol: 'NVDA',  name: 'Nvidia',   qty: 1.1633216,  avgCost: 150.20 },
+  { symbol: 'GOOGL', name: 'Alphabet', qty: 0.08074118, avgCost: 247.33 },
+  { symbol: 'PLTR',  name: 'Palantir', qty: 0.09661078, avgCost: 103.30 },
 ];
 
 const COLS = [
@@ -777,8 +775,9 @@ const S = {
     positions: DEFAULT_POSITIONS,
     nextId: DEFAULT_POSITIONS.length + 1,
   }),
-  // Prices are stored separately so a price-fetch save can never touch positions
-  prices: load('prices', {}), // { symbol: { c, d, dp, lastFetch } }
+  // Prices stored separately — price-fetch saves never touch positions
+  prices: load('prices', {}),  // { symbol: { c, d, dp, lastFetch } }
+  usdchf: load('usdchf', 0.9), // live USD→CHF rate (fallback ≈ 0.90)
   habits: load('habits', {
     list: DEFAULT_HABITS,
     completions: {},    // { 'YYYY-MM-DD': [habitId,...] }
@@ -796,6 +795,7 @@ function saveAll() {
   save('finance', S.finance);
   save('stocks', S.stocks);
   save('prices', S.prices);
+  save('usdchf', S.usdchf);
   save('habits', S.habits);
   save('hub', S.hub);
   save('cats', S.categories);
@@ -1005,7 +1005,20 @@ async function fetchQuote(symbol) {
   } catch { return null; }
 }
 
+async function fetchFxRate() {
+  try {
+    const url = `https://finnhub.io/api/v1/forex/rates?base=USD&token=${FINNHUB_KEY}`;
+    const res = await fetch(url);
+    if (!res.ok) return;
+    const data = await res.json();
+    const rate = data?.quote?.CHF;
+    if (rate && rate > 0) { S.usdchf = rate; save('usdchf', rate); }
+  } catch {}
+}
+
 async function fetchAllPrices() {
+  // Fetch FX rate first so conversions are fresh
+  await fetchFxRate();
   const symbols = S.stocks.positions.map(p => p.symbol);
   const results = await Promise.allSettled(symbols.map(s => fetchQuote(s)));
   let changed = false;
@@ -1102,10 +1115,11 @@ function renderToday() {
   const spend = totalSpend();
   const lim = S.finance.limit;
 
-  // portfolio
+  // portfolio (prices in USD → convert to CHF for display)
+  const fx = S.usdchf || 0.9;
   const totalVal = S.stocks.positions.reduce((s,p)=>{
     const pr = S.prices[p.symbol];
-    return s + p.qty * (pr ? pr.c : p.avgCost);
+    return s + p.qty * (pr ? pr.c * fx : p.avgCost);
   }, 0);
   const totalCost = S.stocks.positions.reduce((s,p)=>s+p.qty*p.avgCost, 0);
   const portfolioPL = totalVal - totalCost;
@@ -1193,12 +1207,12 @@ function renderToday() {
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
         <div>
           <div class="mono" style="color:var(--cyan);font-size:10px"><span class="live-dot"></span>Portfolio</div>
-          <div style="margin-top:8px;font-family:var(--serif);font-size:30px;font-weight:500">€${fmtNum(totalVal)}</div>
+          <div style="margin-top:8px;font-family:var(--serif);font-size:30px;font-weight:500">Fr ${fmtNum(totalVal)}</div>
           <div style="margin-top:5px;font-family:var(--mono);font-size:11px;color:${portfolioPL>=0?'var(--cyan)':'var(--red)'}">
-            ${portfolioPL>=0?'+':'−'}€${fmtNum(Math.abs(portfolioPL))} aujourd'hui
+            ${portfolioPL>=0?'+':'−'}Fr ${fmtNum(Math.abs(portfolioPL))} all-time
           </div>
         </div>
-        ${svgSpark(S.stocks.positions.map(p=>{const pr=S.prices[p.symbol];return p.qty*(pr?pr.c:p.avgCost);}), 'var(--cyan)', 110, 50)}
+        ${svgSpark(S.stocks.positions.map(p=>{const pr=S.prices[p.symbol];return p.qty*(pr?pr.c*fx:p.avgCost);}), 'var(--cyan)', 110, 50)}
       </div>
     `, 'cyan')}
   </div>
@@ -1661,17 +1675,19 @@ function saveTx() {
 function renderInvest() {
   const positions = S.stocks.positions;
   const priceMap = S.prices;
+  const fx = S.usdchf || 0.9; // USD → CHF conversion rate
 
+  // All values in CHF: live prices (USD) × fx, avgCost already in CHF
   const totalVal = positions.reduce((s,p)=>{
     const pr = priceMap[p.symbol];
-    return s + p.qty*(pr?pr.c:p.avgCost);
+    return s + p.qty*(pr ? pr.c*fx : p.avgCost);
   }, 0);
   const totalCost = positions.reduce((s,p)=>s+p.qty*p.avgCost, 0);
   const totalPL = totalVal - totalCost;
   const totalPLpct = totalCost>0?(totalPL/totalCost)*100:0;
   const todayChange = positions.reduce((s,p)=>{
     const pr = priceMap[p.symbol];
-    return s + (pr?pr.d*p.qty:0);
+    return s + (pr ? pr.d*fx*p.qty : 0);
   }, 0);
 
   const isLoading = Object.keys(priceMap).length === 0;
@@ -1681,7 +1697,8 @@ function renderInvest() {
 
   const posRows = positions.map((p,i)=>{
     const pr = priceMap[p.symbol];
-    const price = pr ? pr.c : p.avgCost;
+    // price and P&L all in CHF
+    const price = pr ? pr.c * fx : p.avgCost;
     const value = p.qty * price;
     const ppl = (price - p.avgCost) * p.qty;
     const ppct = ((price - p.avgCost) / p.avgCost) * 100;
@@ -1693,7 +1710,7 @@ function renderInvest() {
       return p.avgCost * noise * (1 + (ppct/100) * (j/7));
     });
     sparkVals[7] = price;
-    const dayChg = pr ? pr.d : 0;
+    const dayChg = pr ? pr.d * fx : 0;
     const dayChgPct = pr ? pr.dp : 0;
 
     return `<div class="card card-sm animate-in stagger-${Math.min(i+4,8)}" style="margin-bottom:8px" data-lp="openEditPosition('${p.symbol}')" title="Maintenir pour modifier">
@@ -1703,15 +1720,15 @@ function renderInvest() {
           <div class="pos-info">
             <div class="pos-name">
               <span>${p.name}</span>
-              <span style="font-family:var(--serif);font-size:15px">€${fmtNum(value,0)}</span>
+              <span style="font-family:var(--serif);font-size:15px">Fr ${fmtNum(value,2)}</span>
             </div>
             <div class="pos-sub">
-              <span>${p.qty} × €${fmtNum(price,2)}${isLoading?` <span class="loading-spin"></span>`:''}</span>
+              <span>${fmtNum(p.qty,4)} × Fr ${fmtNum(price,2)}${isLoading?` <span class="loading-spin"></span>`:''}</span>
               <span style="color:${ppl>=0?'var(--green)':'var(--red)'}">
-                ${ppl>=0?'+':'−'}€${fmtNum(Math.abs(ppl),0)} (${ppct>=0?'+':''}${fmtNum(ppct,1)}%)
+                ${ppl>=0?'+':'−'}Fr ${fmtNum(Math.abs(ppl),2)} (${ppct>=0?'+':''}${fmtNum(ppct,1)}%)
               </span>
             </div>
-            ${pr?`<div class="mono" style="font-size:9px;margin-top:4px;color:${dayChg>=0?'var(--green)':'var(--red)'}">${dayChg>=0?'+':''}€${fmtNum(dayChg,2)} aujourd'hui (${dayChgPct>=0?'+':''}${fmtNum(dayChgPct,2)}%)</div>`:''}
+            ${pr?`<div class="mono" style="font-size:9px;margin-top:4px;color:${dayChg>=0?'var(--green)':'var(--red)'}">${dayChg>=0?'+':'−'}Fr ${fmtNum(Math.abs(dayChg),2)} auj. (${dayChgPct>=0?'+':''}${fmtNum(dayChgPct,2)}%)</div>`:''}
           </div>
           <button class="pos-del" onclick="event.stopPropagation();deletePosition('${p.symbol}')" oncontextmenu="event.stopPropagation()" title="Supprimer">🗑</button>
         </div>
@@ -1730,15 +1747,15 @@ function renderInvest() {
 
   <div class="px animate-in stagger-2" style="padding-top:10px;padding-bottom:6px">
     ${card(`
-      <div class="mono" style="color:var(--cyan);font-size:10px"><span class="live-dot"></span>Valeur totale</div>
+      <div class="mono" style="color:var(--cyan);font-size:10px"><span class="live-dot"></span>Valeur totale · CHF</div>
       <div style="margin-top:12px;display:flex;align-items:flex-end;gap:5px">
-        <span style="font-family:var(--serif);font-size:24px;color:var(--mute)">€</span>
-        <span class="num" style="font-size:60px">${fmtNum(totalVal,0)}</span>
+        <span style="font-family:var(--serif);font-size:24px;color:var(--mute)">Fr</span>
+        <span class="num" style="font-size:60px">${fmtNum(totalVal,2)}</span>
       </div>
       <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        ${pill(`↗ +€${fmtNum(Math.abs(totalPL),0)}`, 'cyan')}
-        <span class="mono" style="color:${totalPLpct>=0?'var(--cyan)':'var(--red)'};font-size:10px">+${fmtNum(totalPLpct,2)}% all-time</span>
-        ${todayChange!==0?`<span class="mono" style="color:${todayChange>=0?'var(--green)':'var(--red)'};font-size:10px">${todayChange>=0?'+':'−'}€${fmtNum(Math.abs(todayChange),0)} aujourd'hui</span>`:''}
+        ${pill(`${totalPL>=0?'↗ +':'↘ −'}Fr ${fmtNum(Math.abs(totalPL),2)}`, 'cyan')}
+        <span class="mono" style="color:${totalPLpct>=0?'var(--cyan)':'var(--red)'};font-size:10px">${totalPLpct>=0?'+':''}${fmtNum(totalPLpct,2)}% all-time</span>
+        ${todayChange!==0?`<span class="mono" style="color:${todayChange>=0?'var(--green)':'var(--red)'};font-size:10px">${todayChange>=0?'+':'−'}Fr ${fmtNum(Math.abs(todayChange),2)} auj.</span>`:''}
       </div>
       <div style="margin-top:16px;margin-left:-4px;margin-right:-4px">
         ${svgSpark(sparkData,'var(--cyan)',330,70)}
@@ -2118,7 +2135,7 @@ function openAddPosition() {
         <input id="pos-qty" class="sheet-input" type="number" min="0.001" step="0.001" placeholder="10" inputmode="decimal">
       </div>
       <div class="sheet-field">
-        <label>Prix moyen (€)</label>
+        <label>Prix moyen (Fr CHF)</label>
         <input id="pos-cost" class="sheet-input" type="number" min="0.0001" step="0.0001" placeholder="150.00" inputmode="decimal">
       </div>
     </div>
@@ -2163,7 +2180,7 @@ function openEditPosition(symbol) {
         <input id="epos-qty" class="sheet-input" type="number" min="0.001" step="0.001" value="${p.qty}" inputmode="decimal">
       </div>
       <div class="sheet-field">
-        <label>Prix moyen (€)</label>
+        <label>Prix moyen (Fr CHF)</label>
         <input id="epos-cost" class="sheet-input" type="number" min="0.0001" step="0.0001" value="${p.avgCost}" inputmode="decimal">
       </div>
     </div>
